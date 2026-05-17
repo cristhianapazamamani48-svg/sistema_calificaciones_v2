@@ -55,6 +55,41 @@ app.get('/api/seed', async (req, res) => {
     }
 });
 
+// RUTA DASHBOARD: Extrae la materia prima para armar la tabla tipo Excel
+app.get('/api/dashboard', async (req, res) => {
+    try {
+        const connection = await pool.getConnection();
+
+        // 1. Obtenemos a los estudiantes inscritos en este curso
+        const [estudiantes] = await connection.query(`
+            SELECT s.id, s.name 
+            FROM students s
+            JOIN enrollments e ON s.id = e.student_id
+            WHERE e.course_assignment_id = 1 AND e.is_active = TRUE
+        `);
+
+        // 2. Obtenemos las columnas (Evaluaciones y el porcentaje de su categoría)
+        const [evaluaciones] = await connection.query(`
+            SELECT e.id as eval_id, e.name as eval_name, c.id as cat_id, c.name as category_name, c.weight_percentage 
+            FROM evaluations e
+            JOIN evaluation_categories c ON e.category_id = c.id
+            WHERE c.term_id = 1
+        `);
+
+        // 3. Obtenemos las notas que ya existen
+        const [notas] = await connection.query('SELECT student_id, evaluation_id, score FROM grades');
+
+        connection.release();
+
+        // Enviamos todo empaquetado al navegador web
+        res.json({ estudiantes, evaluaciones, notas });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
