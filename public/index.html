@@ -3,13 +3,35 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Sistema de Calificaciones - Infocal</title>
+    <title>Calificaciones - Infocal</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
-    <h1>Bienvenido al Sistema de Calificaciones INFOCAL</h1>
-    <p>El servidor y la base de datos están listos para la acción.</p>
+    <div class="dashboard-container">
+        <header>
+            <h1>Gestor de Calificaciones</h1>
+            <p>1er Año Mañana - Sistemas Informáticos</p>
+        </header>
+
+        <div class="table-wrapper">
+            <table id="gradesTable">
+                <thead>
+                    <tr id="categoryRow">
+                        <th rowspan="2" class="sticky-col">Estudiante</th>
+                        <!-- Las categorías (Ej: Prácticas 40%) aparecerán aquí -->
+                    </tr>
+                    <tr id="evaluationRow">
+                        <!-- Los ítems (Ej: Práctica 1) aparecerán aquí -->
+                    </tr>
+                </thead>
+                <tbody id="studentsBody">
+                    <!-- Los estudiantes y sus casillas de Excel aparecerán aquí -->
+                </tbody>
+            </table>
+        </div>
+    </div>
     <script src="app.js"></script>
 </body>
 
