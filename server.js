@@ -89,6 +89,26 @@ app.get('/api/dashboard', async (req, res) => {
     }
 });
 
+// RUTA GUARDAR NOTAS: Recibe el número tecleado y lo clava en la Base de Datos
+app.post('/api/grades', async (req, res) => {
+    try {
+        const { student_id, evaluation_id, score } = req.body;
+        const connection = await pool.getConnection();
+
+        // Magia SQL Profesional: Intenta insertar la nota, pero si el estudiante ya tenía una nota en esa evaluación, simplemente la actualiza (ON DUPLICATE KEY UPDATE)
+        await connection.query(`
+            INSERT INTO grades (student_id, evaluation_id, score) 
+            VALUES (?, ?, ?) 
+            ON DUPLICATE KEY UPDATE score = ?
+        `, [student_id, evaluation_id, score, score]);
+
+        connection.release();
+        res.json({ success: true });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
+});
 
 
 const PORT = process.env.PORT || 3000;
