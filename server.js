@@ -753,14 +753,29 @@ app.delete('/api/categories/:id', async (req, res) => {
 app.get('/api/evaluations', async (req, res) => {
     let connection;
     try {
+        const categoryId = parseId(req.query.category_id);
+        const termId = parseId(req.query.term_id) || 1;
         connection = await pool.getConnection();
-        const [evaluaciones] = await connection.query(`
-            SELECT e.id, e.name, e.category_id, c.name as category_name
-            FROM evaluations e
-            JOIN evaluation_categories c ON e.category_id = c.id
-            WHERE c.term_id = 1
-            ORDER BY c.name ASC, e.name ASC
-        `);
+
+        let evaluaciones;
+        if (categoryId) {
+            [evaluaciones] = await connection.query(`
+                SELECT e.id, e.name, e.category_id, c.name as category_name
+                FROM evaluations e
+                JOIN evaluation_categories c ON e.category_id = c.id
+                WHERE e.category_id = ?
+                ORDER BY e.name ASC
+            `, [categoryId]);
+        } else {
+            [evaluaciones] = await connection.query(`
+                SELECT e.id, e.name, e.category_id, c.name as category_name
+                FROM evaluations e
+                JOIN evaluation_categories c ON e.category_id = c.id
+                WHERE c.term_id = ?
+                ORDER BY c.name ASC, e.name ASC
+            `, [termId]);
+        }
+
         res.json(evaluaciones);
     } catch (error) {
         console.error(error);
@@ -780,6 +795,22 @@ app.post('/api/evaluations', async (req, res) => {
         }
 
         connection = await pool.getConnection();
+
+        const [categoryRows] = await connection.query(`
+            SELECT ec.id, t.is_closed
+            FROM evaluation_categories ec
+            JOIN terms t ON ec.term_id = t.id
+            WHERE ec.id = ?
+            LIMIT 1
+        `, [categoryId]);
+
+        if (categoryRows.length === 0) {
+            return res.status(404).json({ error: 'Categoria no encontrada' });
+        }
+        if (categoryRows[0].is_closed) {
+            return res.status(400).json({ error: 'No se pueden modificar evaluaciones de un parcial cerrado' });
+        }
+
         const [result] = await connection.query(
             'INSERT INTO evaluations (category_id, name) VALUES (?, ?)',
             [categoryId, name.trim()]
@@ -801,6 +832,23 @@ app.delete('/api/evaluations/:id', async (req, res) => {
         if (!id) return res.status(400).json({ error: 'ID invalido' });
 
         connection = await pool.getConnection();
+
+        const [evaluationRows] = await connection.query(`
+            SELECT e.id, t.is_closed
+            FROM evaluations e
+            JOIN evaluation_categories ec ON e.category_id = ec.id
+            JOIN terms t ON ec.term_id = t.id
+            WHERE e.id = ?
+            LIMIT 1
+        `, [id]);
+
+        if (evaluationRows.length === 0) {
+            return res.status(404).json({ error: 'Evaluacion no encontrada' });
+        }
+        if (evaluationRows[0].is_closed) {
+            return res.status(400).json({ error: 'No se pueden modificar evaluaciones de un parcial cerrado' });
+        }
+
         const [result] = await connection.query('DELETE FROM evaluations WHERE id = ?', [id]);
 
         if (result.affectedRows === 0) {

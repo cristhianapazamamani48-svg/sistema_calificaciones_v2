@@ -69,6 +69,29 @@
             <p id="categoryTotal" class="helper-text">Total configurado: 0%</p>
             <div id="categoriesList" class="item-list"></div>
         </section>
+
+        <main class="students-layout">
+            <section class="panel">
+                <h2>Categoria de Evaluacion</h2>
+                <form class="stack-form">
+                    <select id="categorySelect" required></select>
+                </form>
+                <p id="evaluationHint" class="helper-text">Selecciona una categoria para crear evaluaciones.</p>
+            </section>
+
+            <section class="panel">
+                <h2>Crear Evaluacion</h2>
+                <form id="evaluationForm" class="stack-form">
+                    <input type="text" id="evaluationName" placeholder="Nombre (Ej: Practica 1)" required>
+                    <button type="submit">Crear evaluacion</button>
+                </form>
+            </section>
+        </main>
+
+        <section class="panel students-panel">
+            <h2>Evaluaciones del Parcial</h2>
+            <div id="evaluationsList" class="item-list"></div>
+        </section>
     </div>
     <script src="evaluations.js"></script>
 </body>
