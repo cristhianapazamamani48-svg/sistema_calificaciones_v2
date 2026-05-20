@@ -2,7 +2,6 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 
-// Al requerir este archivo, Node.js construirá automáticamente tus 11 tablas
 const pool = require('./database');
 
 const app = express();
@@ -10,256 +9,461 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// Una ruta básica de prueba
+function parseId(value) {
+    const id = Number.parseInt(value, 10);
+    return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+function requiredText(value) {
+    return typeof value === 'string' && value.trim() !== '';
+}
+
 app.get('/api/estado', (req, res) => {
     res.json({ mensaje: 'Sistema de Calificaciones V2 Operativo' });
 });
 
-
-// RUTA SEMILLA: Inyecta datos de prueba para saltar a la fase de Tabla de Notas
 app.get('/api/seed', async (req, res) => {
+    let connection;
     try {
-        const connection = await pool.getConnection();
+        connection = await pool.getConnection();
 
-        // 1. Creamos la institución y materia
-        const [sede] = await connection.query('INSERT INTO campuses (name) VALUES (?)', ['Infocal El Alto']);
-        const [materia] = await connection.query('INSERT INTO subjects (name) VALUES (?)', ['Sistemas Informáticos']);
-        const [periodo] = await connection.query('INSERT INTO academic_periods (name, start_date, end_date) VALUES (?, ?, ?)', ['Gestión 2026', '2026-02-01', '2026-11-30']);
+        const [sede] = await connection.query('INSERT INTO campuses (name) VALUES (?)', ['Sede El Alto']);
+        const [materia] = await connection.query('INSERT INTO subjects (name) VALUES (?)', ['Sistemas Informaticos']);
+        const [periodo] = await connection.query(
+            'INSERT INTO academic_periods (name, start_date, end_date) VALUES (?, ?, ?)',
+            ['Gestion 2026', '2026-02-01', '2026-11-30']
+        );
+        const [docente] = await connection.query(
+            'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)',
+            ['Tu Nombre', 'profe@infocal.edu', '1234', 'docente']
+        );
+        const [grupo] = await connection.query(
+            'INSERT INTO academic_groups (unique_code, name, campus_id, career, level_name, shift, class_modality, academic_type, academic_year) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            ['SIS-1A', '1er Anio Maniana', sede.insertId, 'Sistemas Informaticos', 'Primer anio', 'Maniana', 'Presencial', 'Anual', 2026]
+        );
+        const [curso] = await connection.query(
+            'INSERT INTO course_assignments (teacher_id, subject_id, group_id, academic_period_id) VALUES (?, ?, ?, ?)',
+            [docente.insertId, materia.insertId, grupo.insertId, periodo.insertId]
+        );
+        const [parcial] = await connection.query(
+            'INSERT INTO terms (course_assignment_id, name) VALUES (?, ?)',
+            [curso.insertId, '1er Parcial']
+        );
+        const [catPracticas] = await connection.query(
+            'INSERT INTO evaluation_categories (term_id, name, weight_percentage) VALUES (?, ?, ?)',
+            [parcial.insertId, 'Practicas', 40.00]
+        );
+        const [catExamen] = await connection.query(
+            'INSERT INTO evaluation_categories (term_id, name, weight_percentage) VALUES (?, ?, ?)',
+            [parcial.insertId, 'Examen Final', 60.00]
+        );
 
-        // 2. Te creamos a ti y a tu clase
-        const [docente] = await connection.query('INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)', ['Tu Nombre', 'profe@infocal.edu', '1234', 'docente']);
-        const [grupo] = await connection.query('INSERT INTO academic_groups (unique_code, name, campus_id) VALUES (?, ?, ?)', ['SIS-1A', '1er Año Mañana', sede.insertId]);
-        const [curso] = await connection.query('INSERT INTO course_assignments (teacher_id, subject_id, group_id, academic_period_id) VALUES (?, ?, ?, ?)', [docente.insertId, materia.insertId, grupo.insertId, periodo.insertId]);
-        const [parcial] = await connection.query('INSERT INTO terms (course_assignment_id, name) VALUES (?, ?)', [curso.insertId, '1er Parcial']);
+        await connection.query('INSERT INTO evaluations (category_id, name) VALUES (?, ?)', [catPracticas.insertId, 'Practica 1 - Diagramas']);
+        await connection.query('INSERT INTO evaluations (category_id, name) VALUES (?, ?)', [catPracticas.insertId, 'Practica 2 - Codigo']);
+        await connection.query('INSERT INTO evaluations (category_id, name) VALUES (?, ?)', [catExamen.insertId, 'Examen Teorico']);
 
-        // 3. Creamos las reglas del juego (Prácticas 40%, Examen 60%)
-        const [catPracticas] = await connection.query('INSERT INTO evaluation_categories (term_id, name, weight_percentage) VALUES (?, ?, ?)', [parcial.insertId, 'Prácticas', 40.00]);
-        const [catExamen] = await connection.query('INSERT INTO evaluation_categories (term_id, name, weight_percentage) VALUES (?, ?, ?)', [parcial.insertId, 'Examen Final', 60.00]);
-
-        await connection.query('INSERT INTO evaluations (category_id, name) VALUES (?, ?)', [catPracticas.insertId, 'Práctica 1 - Diagramas']);
-        await connection.query('INSERT INTO evaluations (category_id, name) VALUES (?, ?)', [catPracticas.insertId, 'Práctica 2 - Código']);
-        await connection.query('INSERT INTO evaluations (category_id, name) VALUES (?, ?)', [catExamen.insertId, 'Examen Teórico']);
-
-        // 4. Inscribimos a 5 estudiantes
-        const nombres = ['Ana López', 'Carlos Perez', 'Maria Gomez', 'Juan Diaz', 'Luis Torres'];
-        for (let nombre of nombres) {
+        const nombres = ['Ana Lopez', 'Carlos Perez', 'Maria Gomez', 'Juan Diaz', 'Luis Torres'];
+        for (const nombre of nombres) {
             const [estudiante] = await connection.query('INSERT INTO students (name) VALUES (?)', [nombre]);
-            await connection.query('INSERT INTO enrollments (student_id, course_assignment_id) VALUES (?, ?)', [estudiante.insertId, curso.insertId]);
+            await connection.query(
+                'INSERT INTO enrollments (student_id, course_assignment_id) VALUES (?, ?)',
+                [estudiante.insertId, curso.insertId]
+            );
         }
 
-        connection.release();
-        res.json({ mensaje: '¡Magia realizada! Las 11 tablas han sido llenadas con datos de prueba de Infocal.' });
+        res.json({ mensaje: 'Datos de prueba creados para Infocal.' });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
     }
 });
 
-// RUTA DASHBOARD: Extrae la materia prima para armar la tabla tipo Excel
 app.get('/api/dashboard', async (req, res) => {
+    let connection;
     try {
-        const connection = await pool.getConnection();
-
-        // 1. Obtenemos a los estudiantes inscritos en este curso
+        connection = await pool.getConnection();
         const [estudiantes] = await connection.query(`
-            SELECT s.id, s.name 
+            SELECT s.id, s.name
             FROM students s
             JOIN enrollments e ON s.id = e.student_id
             WHERE e.course_assignment_id = 1 AND e.is_active = TRUE
         `);
-
-        // 2. Obtenemos las columnas (Evaluaciones y el porcentaje de su categoría)
         const [evaluaciones] = await connection.query(`
-            SELECT e.id as eval_id, e.name as eval_name, c.id as cat_id, c.name as category_name, c.weight_percentage 
+            SELECT e.id as eval_id, e.name as eval_name, c.id as cat_id, c.name as category_name, c.weight_percentage
             FROM evaluations e
             JOIN evaluation_categories c ON e.category_id = c.id
             WHERE c.term_id = 1
         `);
-
-        // 3. Obtenemos las notas que ya existen
         const [notas] = await connection.query('SELECT student_id, evaluation_id, score FROM grades');
 
-        connection.release();
-
-        // Enviamos todo empaquetado al navegador web
         res.json({ estudiantes, evaluaciones, notas });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
     }
 });
 
-// RUTA GUARDAR NOTAS: Recibe el número tecleado y lo clava en la Base de Datos
 app.post('/api/grades', async (req, res) => {
+    let connection;
     try {
-        const { student_id, evaluation_id, score } = req.body;
-        const connection = await pool.getConnection();
+        const studentId = parseId(req.body.student_id);
+        const evaluationId = parseId(req.body.evaluation_id);
+        const score = Number.parseFloat(req.body.score);
 
-        // Magia SQL Profesional: Intenta insertar la nota, pero si el estudiante ya tenía una nota en esa evaluación, simplemente la actualiza (ON DUPLICATE KEY UPDATE)
+        if (!studentId || !evaluationId || Number.isNaN(score) || score < 0 || score > 100) {
+            return res.status(400).json({ error: 'Datos de calificacion invalidos' });
+        }
+
+        connection = await pool.getConnection();
         await connection.query(`
-            INSERT INTO grades (student_id, evaluation_id, score) 
-            VALUES (?, ?, ?) 
+            INSERT INTO grades (student_id, evaluation_id, score)
+            VALUES (?, ?, ?)
             ON DUPLICATE KEY UPDATE score = ?
-        `, [student_id, evaluation_id, score, score]);
+        `, [studentId, evaluationId, score, score]);
 
-        connection.release();
         res.json({ success: true });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
     }
 });
 
-// RUTA OBTENER ESTUDIANTES: Devuelve la lista de estudiantes para el panel de administración
 app.get('/api/students', async (req, res) => {
+    let connection;
     try {
-        const connection = await pool.getConnection();
+        connection = await pool.getConnection();
         const [estudiantes] = await connection.query(`
-            SELECT s.id, s.name, e.created_at 
+            SELECT s.id, s.name, s.phone, s.notes, e.created_at
             FROM students s
             JOIN enrollments e ON s.id = e.student_id
             WHERE e.course_assignment_id = 1 AND e.is_active = TRUE
             ORDER BY s.name ASC
         `);
-        connection.release();
         res.json(estudiantes);
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
     }
 });
 
-// RUTA AGREGAR ESTUDIANTE: Registra un nuevo estudiante y lo matricula en el curso
 app.post('/api/students', async (req, res) => {
+    let connection;
     try {
-        const { name } = req.body;
-        if (!name || name.trim() === '') {
+        const { name, phone, notes } = req.body;
+        if (!requiredText(name)) {
             return res.status(400).json({ error: 'El nombre es obligatorio' });
         }
 
-        const connection = await pool.getConnection();
+        connection = await pool.getConnection();
+        const [estudiante] = await connection.query(
+            'INSERT INTO students (name, phone, notes) VALUES (?, ?, ?)',
+            [name.trim(), phone?.trim() || null, notes?.trim() || null]
+        );
+        await connection.query(
+            'INSERT INTO enrollments (student_id, course_assignment_id) VALUES (?, ?)',
+            [estudiante.insertId, 1]
+        );
 
-        // 1. Crear al estudiante
-        const [estudiante] = await connection.query('INSERT INTO students (name) VALUES (?)', [name.trim()]);
-
-        // 2. Matricularlo en el curso (asignación = 1 por ahora)
-        await connection.query('INSERT INTO enrollments (student_id, course_assignment_id) VALUES (?, ?)', [estudiante.insertId, 1]);
-
-        connection.release();
-        res.json({ success: true, message: 'Estudiante matriculado con éxito', id: estudiante.insertId });
+        res.json({ success: true, message: 'Estudiante matriculado con exito', id: estudiante.insertId });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
     }
 });
 
-// RUTA ELIMINAR ESTUDIANTE: Desmatricula y elimina al estudiante de la base de datos
 app.delete('/api/students/:id', async (req, res) => {
+    let connection;
     try {
-        const { id } = req.params;
-        const connection = await pool.getConnection();
+        const id = parseId(req.params.id);
+        if (!id) return res.status(400).json({ error: 'ID invalido' });
 
-        // Al estar configurada la clave foránea con ON DELETE CASCADE en enrollments y grades,
-        // al eliminar al estudiante de la tabla 'students', automáticamente se limpiará su matrícula y sus notas.
+        connection = await pool.getConnection();
         const [result] = await connection.query('DELETE FROM students WHERE id = ?', [id]);
-
-        connection.release();
 
         if (result.affectedRows === 0) {
             return res.status(404).json({ error: 'Estudiante no encontrado' });
         }
 
-        res.json({ success: true, message: 'Estudiante eliminado con éxito' });
+        res.json({ success: true, message: 'Estudiante eliminado con exito' });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
     }
 });
 
-
-// ==========================================
-// NUEVOS ENDPOINTS: GESTIÓN DE EVALUACIONES
-// ==========================================
-
-// RUTA OBTENER CATEGORÍAS: Obtiene las categorías de evaluación asociadas al primer parcial (term_id = 1)
-app.get('/api/categories', async (req, res) => {
+app.get('/api/campuses', async (req, res) => {
+    let connection;
     try {
-        const connection = await pool.getConnection();
+        connection = await pool.getConnection();
+        const [campuses] = await connection.query('SELECT id, name FROM campuses ORDER BY name ASC');
+        res.json(campuses);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+app.get('/api/subjects', async (req, res) => {
+    let connection;
+    try {
+        connection = await pool.getConnection();
+        const [subjects] = await connection.query('SELECT id, name, description, created_at FROM subjects ORDER BY name ASC');
+        res.json(subjects);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+app.post('/api/subjects', async (req, res) => {
+    let connection;
+    try {
+        const { name, description } = req.body;
+        if (!requiredText(name)) {
+            return res.status(400).json({ error: 'El nombre de la materia es obligatorio' });
+        }
+
+        connection = await pool.getConnection();
+        const [result] = await connection.query(
+            'INSERT INTO subjects (name, description) VALUES (?, ?)',
+            [name.trim(), description?.trim() || null]
+        );
+
+        res.json({ success: true, id: result.insertId, message: 'Materia creada con exito' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+app.delete('/api/subjects/:id', async (req, res) => {
+    let connection;
+    try {
+        const id = parseId(req.params.id);
+        if (!id) return res.status(400).json({ error: 'ID invalido' });
+
+        connection = await pool.getConnection();
+        const [result] = await connection.query('DELETE FROM subjects WHERE id = ?', [id]);
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Materia no encontrada' });
+        }
+
+        res.json({ success: true, message: 'Materia eliminada con exito' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+app.get('/api/groups', async (req, res) => {
+    let connection;
+    try {
+        connection = await pool.getConnection();
+        const [groups] = await connection.query(`
+            SELECT ag.id, ag.unique_code, ag.name, ag.campus_id, c.name as campus_name,
+                   ag.career, ag.level_name, ag.shift, ag.class_modality, ag.academic_type,
+                   ag.academic_year, ag.passing_score, ag.created_at
+            FROM academic_groups ag
+            JOIN campuses c ON ag.campus_id = c.id
+            ORDER BY ag.academic_year DESC, c.name ASC, ag.unique_code ASC
+        `);
+        res.json(groups);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+app.post('/api/groups', async (req, res) => {
+    let connection;
+    try {
+        const {
+            unique_code,
+            name,
+            campus_id,
+            career,
+            level_name,
+            shift,
+            class_modality,
+            academic_type,
+            academic_year,
+            passing_score
+        } = req.body;
+
+        const campusId = parseId(campus_id);
+        const year = Number.parseInt(academic_year, 10);
+        const passingScore = Number.parseFloat(passing_score || 61);
+
+        if (!requiredText(unique_code) || !requiredText(name) || !campusId) {
+            return res.status(400).json({ error: 'Codigo, nombre y sede son obligatorios' });
+        }
+        if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+            return res.status(400).json({ error: 'Gestion invalida' });
+        }
+        if (Number.isNaN(passingScore) || passingScore < 0 || passingScore > 100) {
+            return res.status(400).json({ error: 'Nota minima invalida' });
+        }
+
+        connection = await pool.getConnection();
+        const [result] = await connection.query(`
+            INSERT INTO academic_groups
+                (unique_code, name, campus_id, career, level_name, shift, class_modality, academic_type, academic_year, passing_score)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+            unique_code.trim(),
+            name.trim(),
+            campusId,
+            career?.trim() || null,
+            level_name?.trim() || null,
+            shift?.trim() || null,
+            class_modality?.trim() || null,
+            academic_type?.trim() || null,
+            year,
+            passingScore
+        ]);
+
+        res.json({ success: true, id: result.insertId, message: 'Grupo creado con exito' });
+    } catch (error) {
+        console.error(error);
+        if (error.code === 'ER_DUP_ENTRY') {
+            return res.status(409).json({ error: 'Ya existe un grupo con ese codigo' });
+        }
+        res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+app.delete('/api/groups/:id', async (req, res) => {
+    let connection;
+    try {
+        const id = parseId(req.params.id);
+        if (!id) return res.status(400).json({ error: 'ID invalido' });
+
+        connection = await pool.getConnection();
+        const [result] = await connection.query('DELETE FROM academic_groups WHERE id = ?', [id]);
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Grupo no encontrado' });
+        }
+
+        res.json({ success: true, message: 'Grupo eliminado con exito' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+app.get('/api/categories', async (req, res) => {
+    let connection;
+    try {
+        connection = await pool.getConnection();
         const [categories] = await connection.query(`
-            SELECT id, name, weight_percentage 
-            FROM evaluation_categories 
+            SELECT id, name, weight_percentage
+            FROM evaluation_categories
             WHERE term_id = 1
         `);
-        connection.release();
         res.json(categories);
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
     }
 });
 
-// RUTA OBTENER EVALUACIONES: Obtiene todas las evaluaciones con el nombre de su categoría correspondiente
 app.get('/api/evaluations', async (req, res) => {
+    let connection;
     try {
-        const connection = await pool.getConnection();
+        connection = await pool.getConnection();
         const [evaluaciones] = await connection.query(`
-            SELECT e.id, e.name, e.category_id, c.name as category_name 
+            SELECT e.id, e.name, e.category_id, c.name as category_name
             FROM evaluations e
             JOIN evaluation_categories c ON e.category_id = c.id
             WHERE c.term_id = 1
             ORDER BY c.name ASC, e.name ASC
         `);
-        connection.release();
         res.json(evaluaciones);
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
     }
 });
 
-// RUTA AGREGAR EVALUACIÓN: Registra una nueva evaluación asignada a una categoría
 app.post('/api/evaluations', async (req, res) => {
+    let connection;
     try {
-        const { category_id, name } = req.body;
-        if (!category_id || !name || name.trim() === '') {
-            return res.status(400).json({ error: 'La categoría y el nombre son obligatorios' });
+        const categoryId = parseId(req.body.category_id);
+        const { name } = req.body;
+        if (!categoryId || !requiredText(name)) {
+            return res.status(400).json({ error: 'La categoria y el nombre son obligatorios' });
         }
 
-        const connection = await pool.getConnection();
+        connection = await pool.getConnection();
         const [result] = await connection.query(
             'INSERT INTO evaluations (category_id, name) VALUES (?, ?)',
-            [category_id, name.trim()]
+            [categoryId, name.trim()]
         );
-        connection.release();
 
-        res.json({ success: true, id: result.insertId, message: 'Evaluación creada con éxito' });
+        res.json({ success: true, id: result.insertId, message: 'Evaluacion creada con exito' });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
     }
 });
 
-// RUTA ELIMINAR EVALUACIÓN: Borra una evaluación (y limpia sus notas asociadas gracias a ON DELETE CASCADE)
 app.delete('/api/evaluations/:id', async (req, res) => {
+    let connection;
     try {
-        const { id } = req.params;
-        const connection = await pool.getConnection();
+        const id = parseId(req.params.id);
+        if (!id) return res.status(400).json({ error: 'ID invalido' });
+
+        connection = await pool.getConnection();
         const [result] = await connection.query('DELETE FROM evaluations WHERE id = ?', [id]);
-        connection.release();
 
         if (result.affectedRows === 0) {
-            return res.status(404).json({ error: 'Evaluación no encontrada' });
+            return res.status(404).json({ error: 'Evaluacion no encontrada' });
         }
-        res.json({ success: true, message: 'Evaluación eliminada con éxito' });
+
+        res.json({ success: true, message: 'Evaluacion eliminada con exito' });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
     }
 });
-
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Servidor de Calificaciones V2 corriendo en el puerto ${PORT}`);
 });
-

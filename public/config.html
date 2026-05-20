@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Configuracion V2 - Infocal</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="dashboard-container">
+        <header>
+            <h1>Gestor de Calificaciones V2</h1>
+            <p>Configuracion academica inicial</p>
+            <nav class="main-nav">
+                <a href="/">Tabla de Notas</a>
+                <a href="/students.html">Estudiantes</a>
+                <a href="/evaluations.html">Evaluaciones</a>
+                <a href="/config.html" class="active">Configuracion</a>
+            </nav>
+        </header>
+
+        <main class="config-grid">
+            <section class="panel">
+                <h2>Materias</h2>
+                <form id="subjectForm" class="stack-form">
+                    <input type="text" id="subjectName" placeholder="Nombre de la materia" required>
+                    <textarea id="subjectDescription" rows="3" placeholder="Descripcion u observaciones"></textarea>
+                    <button type="submit">Crear materia</button>
+                </form>
+                <div id="subjectsList" class="item-list"></div>
+            </section>
+
+            <section class="panel">
+                <h2>Grupos</h2>
+                <form id="groupForm" class="stack-form">
+                    <input type="text" id="groupCode" placeholder="Codigo del grupo (Ej: SCA29.1)" required>
+                    <input type="text" id="groupName" placeholder="Nombre del grupo" required>
+                    <select id="campusSelect" required></select>
+                    <input type="text" id="career" placeholder="Carrera">
+                    <input type="text" id="levelName" placeholder="Nivel o anio (Ej: Primer anio)">
+                    <select id="shift">
+                        <option value="">Turno</option>
+                        <option value="Maniana">Maniana</option>
+                        <option value="Tarde">Tarde</option>
+                        <option value="Noche">Noche</option>
+                    </select>
+                    <select id="classModality">
+                        <option value="">Modalidad de clases</option>
+                        <option value="Presencial">Presencial</option>
+                        <option value="Virtual">Virtual</option>
+                        <option value="Semipresencial">Semipresencial</option>
+                    </select>
+                    <select id="academicType">
+                        <option value="">Tipo academico</option>
+                        <option value="Anual">Anual</option>
+                        <option value="Semestral">Semestral</option>
+                        <option value="Modular">Modular</option>
+                    </select>
+                    <input type="number" id="academicYear" min="2000" max="2100" placeholder="Gestion" required>
+                    <input type="number" id="passingScore" min="0" max="100" step="0.01" value="61" placeholder="Nota minima">
+                    <button type="submit">Crear grupo</button>
+                </form>
+                <div id="groupsList" class="item-list"></div>
+            </section>
+        </main>
+    </div>
+    <script src="config.js"></script>
+</body>
+
+</html>

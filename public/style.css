@@ -41,12 +41,61 @@ header p {
     font-size: 1.1rem;
 }
 
-.table-wrapper {
+.main-nav {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.main-nav a {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 1rem;
+    font-weight: 700;
+    padding: 0.35rem 0;
+    border-bottom: 2px solid transparent;
+    transition: color 0.2s, border-color 0.2s;
+}
+
+.main-nav a:hover,
+.main-nav a.active {
+    color: var(--primary);
+    border-color: var(--primary);
+}
+
+.table-wrapper,
+.panel {
     background: var(--card-bg);
     border: 1px solid var(--border);
     border-radius: 12px;
-    overflow-x: auto;
     backdrop-filter: blur(10px);
+}
+
+.table-wrapper {
+    overflow-x: auto;
+}
+
+.narrow-panel {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.narrow-panel h2,
+.panel h2 {
+    margin-bottom: 1.5rem;
+    color: var(--primary);
+    text-align: center;
+}
+
+.narrow-panel h3 {
+    margin-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.5rem;
+    color: var(--text-muted);
 }
 
 table {
@@ -75,7 +124,6 @@ th {
     text-align: left;
 }
 
-/* Estilos de las celdas como si fuera Excel */
 input[type="number"] {
     width: 80px;
     padding: 0.5rem;
@@ -88,26 +136,78 @@ input[type="number"] {
     transition: all 0.3s;
 }
 
-input[type="number"]:focus {
+input[type="number"]:focus,
+input[type="text"]:focus,
+textarea:focus,
+select:focus {
     outline: none;
     border-color: var(--primary);
     background: rgba(59, 130, 246, 0.1);
 }
 
-/* Esconder las flechitas de los números */
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button {
     -webkit-appearance: none;
 }
 
-/* --- Estilos para la Gestión de Estudiantes --- */
-.no-students {
-    text-align: center;
-    padding: 1.5rem;
-    color: var(--text-muted);
-    font-style: italic;
+.inline-form {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 2rem;
 }
 
+.stack-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 2rem;
+}
+
+.inline-form input,
+.stack-form input,
+.stack-form select,
+.stack-form textarea {
+    width: 100%;
+    padding: 0.8rem;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: rgba(15, 23, 42, 0.5);
+    color: white;
+    font: inherit;
+}
+
+.stack-form select {
+    background: #1e293b;
+}
+
+.inline-form button,
+.stack-form button {
+    padding: 0.8rem 1.2rem;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.config-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.5rem;
+}
+
+.panel {
+    padding: 2rem;
+}
+
+.item-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.config-item,
 .student-item {
     display: flex;
     justify-content: space-between;
@@ -120,11 +220,43 @@ input[type="number"]::-webkit-inner-spin-button {
     transition: all 0.3s ease;
 }
 
+.config-item {
+    gap: 1rem;
+    margin-bottom: 0;
+}
+
+.config-item:hover,
 .student-item:hover {
     background: rgba(30, 41, 59, 0.8);
     border-color: rgba(59, 130, 246, 0.4);
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.config-item div {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.config-item span,
+.empty-message,
+.no-students {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.no-students,
+.empty-message {
+    text-align: center;
+    padding: 1.5rem;
+    font-style: italic;
+}
+
+#studentsList {
+    list-style: none;
+    padding: 0;
 }
 
 .student-info {
@@ -165,10 +297,12 @@ input[type="number"]::-webkit-inner-spin-button {
 
 .btn-delete {
     background: transparent;
-    border: none;
-    font-size: 1.2rem;
+    border: 1px solid transparent;
+    color: #fca5a5;
+    font-size: 0.9rem;
+    font-weight: 700;
     cursor: pointer;
-    padding: 0.4rem;
+    padding: 0.45rem 0.65rem;
     border-radius: 6px;
     transition: all 0.2s;
     display: flex;
@@ -178,5 +312,24 @@ input[type="number"]::-webkit-inner-spin-button {
 
 .btn-delete:hover {
     background: rgba(239, 68, 68, 0.2);
-    transform: scale(1.1);
+    border-color: rgba(239, 68, 68, 0.35);
+    transform: scale(1.05);
+}
+
+@media (max-width: 780px) {
+    body {
+        padding: 1rem;
+    }
+
+    header h1 {
+        font-size: 2rem;
+    }
+
+    .config-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .inline-form {
+        flex-direction: column;
+    }
 }

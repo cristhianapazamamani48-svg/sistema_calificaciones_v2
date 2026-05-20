@@ -12,45 +12,26 @@
     <div class="dashboard-container">
         <header>
             <h1>Gestor de Calificaciones V2</h1>
-            <p>1er Año Mañana - Sistemas Informáticos</p>
-            <nav style="margin-top: 1rem; margin-bottom: 1.5rem;">
-                <a href="/"
-                    style="color: var(--text-muted); text-decoration: none; margin-right: 20px; font-weight: bold; font-size: 1.1rem; transition: color 0.3s;">📊
-                    Tabla de Notas</a>
-                <a href="/students.html"
-                    style="color: var(--text-muted); text-decoration: none; margin-right: 20px; font-weight: bold; font-size: 1.1rem; transition: color 0.3s;">👥
-                    Gestión de Estudiantes</a>
-                <a href="/evaluations.html"
-                    style="color: var(--primary); text-decoration: none; font-weight: bold; font-size: 1.1rem; border-bottom: 2px solid var(--primary); padding-bottom: 5px;">📝
-                    Gestión de Evaluaciones</a>
+            <p>Sistema personal de control academico docente</p>
+            <nav class="main-nav">
+                <a href="/">Tabla de Notas</a>
+                <a href="/students.html">Estudiantes</a>
+                <a href="/evaluations.html" class="active">Evaluaciones</a>
+                <a href="/config.html">Configuracion</a>
             </nav>
         </header>
 
-        <div class="table-wrapper" style="padding: 2rem; max-width: 600px; margin: 0 auto;">
-            <h2 style="margin-bottom: 1.5rem; text-align: center; color: var(--primary);">Crear Nueva Evaluación</h2>
+        <div class="table-wrapper narrow-panel">
+            <h2>Crear Nueva Evaluacion</h2>
 
-            <form id="evaluationForm" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 2rem;">
-                <input type="text" id="evaluationName" placeholder="Nombre de la evaluación (Ej: Práctica 3)" required
-                    style="padding: 0.8rem; border-radius: 6px; border: 1px solid var(--border); background: rgba(15, 23, 42, 0.5); color: white; font-size: 1rem;">
-
-                <select id="categorySelect" required
-                    style="padding: 0.8rem; border-radius: 6px; border: 1px solid var(--border); background: #1e293b; color: white; font-size: 1rem;">
-                    <!-- Se poblará dinámicamente -->
-                </select>
-
-                <button type="submit"
-                    style="padding: 0.8rem; background: var(--primary); color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; transition: background 0.3s; font-size: 1rem;">
-                    Crear Evaluación
-                </button>
+            <form id="evaluationForm" class="stack-form">
+                <input type="text" id="evaluationName" placeholder="Nombre de la evaluacion (Ej: Practica 3)" required>
+                <select id="categorySelect" required></select>
+                <button type="submit">Crear Evaluacion</button>
             </form>
 
-            <h3
-                style="margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; color: var(--text-muted);">
-                Evaluaciones por Categoría</h3>
-
-            <div id="evaluationsContainer">
-                <!-- Se listará dinámicamente -->
-            </div>
+            <h3>Evaluaciones por Categoria</h3>
+            <div id="evaluationsContainer"></div>
         </div>
     </div>
     <script src="evaluations.js"></script>

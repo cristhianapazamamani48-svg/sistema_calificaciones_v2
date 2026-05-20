@@ -10,25 +10,51 @@ const pool = mysql.createPool({
     queueLimit: 0
 });
 
-async function initializeDatabase() {
-    try {
-        console.log('Conectando a la Base de Datos...');
-        const connection = await pool.getConnection();
+async function columnExists(connection, tableName, columnName) {
+    const [rows] = await connection.query(`
+        SELECT COLUMN_NAME
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = ?
+          AND COLUMN_NAME = ?
+    `, [tableName, columnName]);
 
-        // 1. Usuarios (Admin o Docente)
+    return rows.length > 0;
+}
+
+async function addColumnIfMissing(connection, tableName, columnName, definition) {
+    if (await columnExists(connection, tableName, columnName)) return;
+    await connection.query(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
+}
+
+async function seedCampus(connection, name) {
+    await connection.query(`
+        INSERT INTO campuses (name)
+        SELECT ?
+        WHERE NOT EXISTS (
+            SELECT 1 FROM campuses WHERE name = ?
+        )
+    `, [name, name]);
+}
+
+async function initializeDatabase() {
+    let connection;
+    try {
+        console.log('Conectando a la base de datos...');
+        connection = await pool.getConnection();
+
         await connection.query(`
             CREATE TABLE IF NOT EXISTS users (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 name VARCHAR(255) NOT NULL,
                 email VARCHAR(255) UNIQUE NOT NULL,
                 password VARCHAR(255) NOT NULL,
-                role ENUM('admin', 'docente') NOT NULL DEFAULT 'docente',
+                role ENUM('superadministrador', 'admin', 'docente') NOT NULL DEFAULT 'docente',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             )
         `);
 
-        // 2. Sedes (Ej. El Alto)
         await connection.query(`
             CREATE TABLE IF NOT EXISTS campuses (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -38,21 +64,20 @@ async function initializeDatabase() {
             )
         `);
 
-        // 3. Materias (Ej. Base de Datos)
         await connection.query(`
             CREATE TABLE IF NOT EXISTS subjects (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 name VARCHAR(255) NOT NULL,
+                description TEXT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             )
         `);
 
-        // 3.5 Periodos Académicos (Para separar el histórico anual)
         await connection.query(`
             CREATE TABLE IF NOT EXISTS academic_periods (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(100) NOT NULL, 
+                name VARCHAR(100) NOT NULL,
                 start_date DATE,
                 end_date DATE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -60,31 +85,37 @@ async function initializeDatabase() {
             )
         `);
 
-        // 4. Grupos Académicos
         await connection.query(`
             CREATE TABLE IF NOT EXISTS academic_groups (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 unique_code VARCHAR(50) UNIQUE NOT NULL,
                 name VARCHAR(255) NOT NULL,
                 campus_id INT NOT NULL,
+                career VARCHAR(255) NULL,
+                level_name VARCHAR(100) NULL,
+                shift VARCHAR(50) NULL,
+                class_modality VARCHAR(50) NULL,
+                academic_type VARCHAR(50) NULL,
+                academic_year INT NULL,
+                passing_score DECIMAL(5,2) NOT NULL DEFAULT 61.00,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 FOREIGN KEY (campus_id) REFERENCES campuses(id) ON DELETE RESTRICT
             )
         `);
 
-        // 5. Estudiantes (Vuelve a ser simple y rápido)
         await connection.query(`
             CREATE TABLE IF NOT EXISTS students (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 name VARCHAR(255) NOT NULL,
+                phone VARCHAR(50) NULL,
+                notes TEXT NULL,
+                status ENUM('activo', 'retirado', 'cambiado') NOT NULL DEFAULT 'activo',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             )
         `);
 
-
-        // 6. Asignaciones de Curso (Docente dicta Materia al Grupo en el Periodo X)
         await connection.query(`
             CREATE TABLE IF NOT EXISTS course_assignments (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -101,7 +132,6 @@ async function initializeDatabase() {
             )
         `);
 
-        // 7. Inscripciones 
         await connection.query(`
             CREATE TABLE IF NOT EXISTS enrollments (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -115,19 +145,20 @@ async function initializeDatabase() {
             )
         `);
 
-        // 8. Parciales (Ej. 1er Parcial, borrado en cascada si se elimina el curso)
         await connection.query(`
             CREATE TABLE IF NOT EXISTS terms (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 course_assignment_id INT NOT NULL,
                 name VARCHAR(100) NOT NULL,
+                official_weight DECIMAL(5,2) NOT NULL DEFAULT 25.00,
+                is_closed BOOLEAN NOT NULL DEFAULT FALSE,
+                closed_at TIMESTAMP NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 FOREIGN KEY (course_assignment_id) REFERENCES course_assignments(id) ON DELETE CASCADE
             )
         `);
 
-        // 9. Categorías de Evaluación (Ej. Prácticas 40%)
         await connection.query(`
             CREATE TABLE IF NOT EXISTS evaluation_categories (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -140,7 +171,6 @@ async function initializeDatabase() {
             )
         `);
 
-        // 10. Ítems de Evaluación (Ej. Práctica 1)
         await connection.query(`
             CREATE TABLE IF NOT EXISTS evaluations (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -152,7 +182,6 @@ async function initializeDatabase() {
             )
         `);
 
-        // 11. Calificaciones (Con restricción UNIQUE contra duplicados)
         await connection.query(`
             CREATE TABLE IF NOT EXISTS grades (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -167,10 +196,30 @@ async function initializeDatabase() {
             )
         `);
 
-        console.log('¡Estructura de Base de Datos Nivel Producción Creada Exitosamente!');
-        connection.release();
+        await addColumnIfMissing(connection, 'subjects', 'description', 'TEXT NULL');
+        await addColumnIfMissing(connection, 'academic_groups', 'career', 'VARCHAR(255) NULL');
+        await addColumnIfMissing(connection, 'academic_groups', 'level_name', 'VARCHAR(100) NULL');
+        await addColumnIfMissing(connection, 'academic_groups', 'shift', 'VARCHAR(50) NULL');
+        await addColumnIfMissing(connection, 'academic_groups', 'class_modality', 'VARCHAR(50) NULL');
+        await addColumnIfMissing(connection, 'academic_groups', 'academic_type', 'VARCHAR(50) NULL');
+        await addColumnIfMissing(connection, 'academic_groups', 'academic_year', 'INT NULL');
+        await addColumnIfMissing(connection, 'academic_groups', 'passing_score', 'DECIMAL(5,2) NOT NULL DEFAULT 61.00');
+        await addColumnIfMissing(connection, 'students', 'phone', 'VARCHAR(50) NULL');
+        await addColumnIfMissing(connection, 'students', 'notes', 'TEXT NULL');
+        await addColumnIfMissing(connection, 'students', 'status', "ENUM('activo', 'retirado', 'cambiado') NOT NULL DEFAULT 'activo'");
+        await addColumnIfMissing(connection, 'terms', 'official_weight', 'DECIMAL(5,2) NOT NULL DEFAULT 25.00');
+        await addColumnIfMissing(connection, 'terms', 'is_closed', 'BOOLEAN NOT NULL DEFAULT FALSE');
+        await addColumnIfMissing(connection, 'terms', 'closed_at', 'TIMESTAMP NULL');
+
+        await seedCampus(connection, 'Sede El Alto');
+        await seedCampus(connection, 'Sede Miraflores');
+        await seedCampus(connection, 'Sede Ballivian');
+
+        console.log('Estructura de base de datos V2 lista.');
     } catch (error) {
         console.error('Error inicializando BD:', error);
+    } finally {
+        if (connection) connection.release();
     }
 }
 

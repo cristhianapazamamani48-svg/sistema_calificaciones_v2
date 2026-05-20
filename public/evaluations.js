@@ -4,25 +4,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const categorySelect = document.getElementById('categorySelect');
     const evaluationsContainer = document.getElementById('evaluationsContainer');
 
-    // Función para obtener y listar las categorías en el <select>
     async function loadCategories() {
         try {
             const response = await fetch('/api/categories');
             const categories = await response.json();
 
-            categorySelect.innerHTML = '<option value="" disabled selected>Selecciona una categoría...</option>';
-            categories.forEach(cat => {
+            categorySelect.innerHTML = '<option value="" disabled selected>Selecciona una categoria...</option>';
+            categories.forEach((cat) => {
                 const option = document.createElement('option');
                 option.value = cat.id;
                 option.textContent = `${cat.name} (${cat.weight_percentage}%)`;
                 categorySelect.appendChild(option);
             });
         } catch (error) {
-            console.error('Error al cargar categorías:', error);
+            console.error('Error al cargar categorias:', error);
         }
     }
 
-    // Función para obtener y listar las evaluaciones existentes agrupadas por categoría
     async function loadEvaluations() {
         try {
             const response = await fetch('/api/evaluations');
@@ -35,16 +33,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // Agrupar evaluaciones por categoría
             const grouped = {};
-            evaluations.forEach(ev => {
+            evaluations.forEach((ev) => {
                 if (!grouped[ev.category_name]) {
                     grouped[ev.category_name] = [];
                 }
                 grouped[ev.category_name].push(ev);
             });
 
-            // Renderizar grupos
             for (const [categoryName, evList] of Object.entries(grouped)) {
                 const groupDiv = document.createElement('div');
                 groupDiv.style.marginBottom = '1.5rem';
@@ -61,16 +57,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 ul.style.listStyle = 'none';
                 ul.style.padding = '0';
 
-                evList.forEach(ev => {
+                evList.forEach((ev) => {
                     const li = document.createElement('li');
-                    li.className = 'student-item'; // Reutilizamos la misma clase CSS de las tarjetas de estudiantes
+                    li.className = 'student-item';
                     li.innerHTML = `
                         <div class="student-info">
                             <span class="student-name">${ev.name}</span>
                         </div>
-                        <button class="btn-delete" data-id="${ev.id}" title="Eliminar evaluación">
-                            🗑️
-                        </button>
+                        <button class="btn-delete" data-id="${ev.id}" title="Eliminar evaluacion">Eliminar</button>
                     `;
                     ul.appendChild(li);
                 });
@@ -79,8 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 evaluationsContainer.appendChild(groupDiv);
             }
 
-            // Asignar eventos de eliminación
-            document.querySelectorAll('.btn-delete').forEach(button => {
+            document.querySelectorAll('.btn-delete').forEach((button) => {
                 button.addEventListener('click', handleDeleteEvaluation);
             });
         } catch (error) {
@@ -88,7 +81,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Registrar nueva evaluación
     evaluationForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const name = evaluationNameInput.value.trim();
@@ -109,43 +101,43 @@ document.addEventListener('DOMContentLoaded', () => {
                 categorySelect.selectedIndex = 0;
                 await loadEvaluations();
             } else {
-                alert('Error al registrar evaluación: ' + (result.error || 'Ocurrió un error'));
+                alert('Error al registrar evaluacion: ' + (result.error || 'Ocurrio un error'));
             }
         } catch (error) {
-            console.error('Error al agregar evaluación:', error);
+            console.error('Error al agregar evaluacion:', error);
         }
     });
 
-    // Eliminar evaluación
     async function handleDeleteEvaluation(e) {
         const id = e.currentTarget.getAttribute('data-id');
         const evItem = e.currentTarget.closest('.student-item');
         const name = evItem.querySelector('.student-name').textContent;
 
-        if (confirm(`¿Estás seguro de que deseas eliminar la evaluación "${name}"? Esta acción borrará permanentemente todas las calificaciones asociadas a ella.`)) {
-            try {
-                const response = await fetch(`/api/evaluations/${id}`, {
-                    method: 'DELETE'
-                });
-                const result = await response.json();
+        if (!confirm(`Eliminar la evaluacion "${name}"? Esta accion borrara sus calificaciones asociadas.`)) {
+            return;
+        }
 
-                if (result.success) {
-                    evItem.style.opacity = '0';
-                    evItem.style.transform = 'translateX(20px)';
-                    evItem.style.transition = 'all 0.3s ease';
-                    setTimeout(() => {
-                        loadEvaluations();
-                    }, 300);
-                } else {
-                    alert('Error al eliminar: ' + (result.error || 'Ocurrió un error'));
-                }
-            } catch (error) {
-                console.error('Error al eliminar evaluación:', error);
+        try {
+            const response = await fetch(`/api/evaluations/${id}`, {
+                method: 'DELETE'
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                evItem.style.opacity = '0';
+                evItem.style.transform = 'translateX(20px)';
+                evItem.style.transition = 'all 0.3s ease';
+                setTimeout(() => {
+                    loadEvaluations();
+                }, 300);
+            } else {
+                alert('Error al eliminar: ' + (result.error || 'Ocurrio un error'));
             }
+        } catch (error) {
+            console.error('Error al eliminar evaluacion:', error);
         }
     }
 
-    // Carga inicial
     loadCategories();
     loadEvaluations();
 });
