@@ -37,6 +37,26 @@ async function seedCampus(connection, name) {
     `, [name, name]);
 }
 
+async function seedDefaultUser(connection) {
+    await connection.query(`
+        INSERT INTO users (name, email, password, role)
+        SELECT 'Docente Principal', 'docente@local.test', '1234', 'docente'
+        WHERE NOT EXISTS (
+            SELECT 1 FROM users WHERE email = 'docente@local.test'
+        )
+    `);
+}
+
+async function seedDefaultAcademicPeriod(connection) {
+    await connection.query(`
+        INSERT INTO academic_periods (name, start_date, end_date)
+        SELECT 'Gestion 2026', '2026-01-01', '2026-12-31'
+        WHERE NOT EXISTS (
+            SELECT 1 FROM academic_periods WHERE name = 'Gestion 2026'
+        )
+    `);
+}
+
 async function initializeDatabase() {
     let connection;
     try {
@@ -214,6 +234,8 @@ async function initializeDatabase() {
         await seedCampus(connection, 'Sede El Alto');
         await seedCampus(connection, 'Sede Miraflores');
         await seedCampus(connection, 'Sede Ballivian');
+        await seedDefaultUser(connection);
+        await seedDefaultAcademicPeriod(connection);
 
         console.log('Estructura de base de datos V2 lista.');
     } catch (error) {

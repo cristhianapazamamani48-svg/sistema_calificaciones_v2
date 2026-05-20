@@ -18,6 +18,32 @@ function requiredText(value) {
     return typeof value === 'string' && value.trim() !== '';
 }
 
+async function getDefaultTeacherId(connection) {
+    const [rows] = await connection.query(
+        "SELECT id FROM users WHERE role IN ('docente', 'superadministrador', 'admin') ORDER BY id ASC LIMIT 1"
+    );
+
+    if (rows.length > 0) return rows[0].id;
+
+    const [result] = await connection.query(
+        'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)',
+        ['Docente Principal', 'docente@local.test', '1234', 'docente']
+    );
+    return result.insertId;
+}
+
+async function getDefaultAcademicPeriodId(connection) {
+    const [rows] = await connection.query('SELECT id FROM academic_periods ORDER BY id ASC LIMIT 1');
+
+    if (rows.length > 0) return rows[0].id;
+
+    const [result] = await connection.query(
+        'INSERT INTO academic_periods (name, start_date, end_date) VALUES (?, ?, ?)',
+        ['Gestion 2026', '2026-01-01', '2026-12-31']
+    );
+    return result.insertId;
+}
+
 app.get('/api/estado', (req, res) => {
     res.json({ mensaje: 'Sistema de Calificaciones V2 Operativo' });
 });
@@ -371,6 +397,91 @@ app.delete('/api/groups/:id', async (req, res) => {
         }
 
         res.json({ success: true, message: 'Grupo eliminado con exito' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+app.get('/api/course-assignments', async (req, res) => {
+    let connection;
+    try {
+        connection = await pool.getConnection();
+        const [assignments] = await connection.query(`
+            SELECT ca.id, ca.group_id, ca.subject_id, ca.teacher_id, ca.academic_period_id,
+                   ag.unique_code, ag.name as group_name, ag.career, ag.academic_year,
+                   c.name as campus_name, s.name as subject_name, u.name as teacher_name,
+                   ap.name as academic_period_name
+            FROM course_assignments ca
+            JOIN academic_groups ag ON ca.group_id = ag.id
+            JOIN campuses c ON ag.campus_id = c.id
+            JOIN subjects s ON ca.subject_id = s.id
+            JOIN users u ON ca.teacher_id = u.id
+            JOIN academic_periods ap ON ca.academic_period_id = ap.id
+            ORDER BY ag.academic_year DESC, ag.unique_code ASC, s.name ASC
+        `);
+        res.json(assignments);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+app.post('/api/course-assignments', async (req, res) => {
+    let connection;
+    try {
+        const groupId = parseId(req.body.group_id);
+        const subjectId = parseId(req.body.subject_id);
+
+        if (!groupId || !subjectId) {
+            return res.status(400).json({ error: 'Grupo y materia son obligatorios' });
+        }
+
+        connection = await pool.getConnection();
+
+        const [existing] = await connection.query(
+            'SELECT id FROM course_assignments WHERE group_id = ? AND subject_id = ? LIMIT 1',
+            [groupId, subjectId]
+        );
+        if (existing.length > 0) {
+            return res.status(409).json({ error: 'Esta materia ya esta asociada a ese grupo' });
+        }
+
+        const teacherId = await getDefaultTeacherId(connection);
+        const academicPeriodId = await getDefaultAcademicPeriodId(connection);
+
+        const [result] = await connection.query(
+            'INSERT INTO course_assignments (teacher_id, subject_id, group_id, academic_period_id) VALUES (?, ?, ?, ?)',
+            [teacherId, subjectId, groupId, academicPeriodId]
+        );
+
+        res.json({ success: true, id: result.insertId, message: 'Materia asociada al grupo con exito' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+app.delete('/api/course-assignments/:id', async (req, res) => {
+    let connection;
+    try {
+        const id = parseId(req.params.id);
+        if (!id) return res.status(400).json({ error: 'ID invalido' });
+
+        connection = await pool.getConnection();
+        const [result] = await connection.query('DELETE FROM course_assignments WHERE id = ?', [id]);
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Asociacion no encontrada' });
+        }
+
+        res.json({ success: true, message: 'Asociacion eliminada con exito' });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: error.message });
