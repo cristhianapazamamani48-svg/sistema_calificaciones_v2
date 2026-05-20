@@ -44,6 +44,31 @@
             <h2>Parciales Registrados</h2>
             <div id="termsList" class="item-list"></div>
         </section>
+
+        <main class="students-layout">
+            <section class="panel">
+                <h2>Ponderaciones del Parcial</h2>
+                <form class="stack-form">
+                    <select id="termSelect" required></select>
+                </form>
+                <p id="termHint" class="helper-text">Selecciona un parcial para configurar sus ponderaciones.</p>
+            </section>
+
+            <section class="panel">
+                <h2>Crear Categoria</h2>
+                <form id="categoryForm" class="stack-form">
+                    <input type="text" id="categoryName" placeholder="Nombre (Ej: Practicas)" required>
+                    <input type="number" id="categoryWeight" min="0.01" max="100" step="0.01" placeholder="Porcentaje" required>
+                    <button type="submit">Crear categoria</button>
+                </form>
+            </section>
+        </main>
+
+        <section class="panel students-panel">
+            <h2>Categorias del Parcial</h2>
+            <p id="categoryTotal" class="helper-text">Total configurado: 0%</p>
+            <div id="categoriesList" class="item-list"></div>
+        </section>
     </div>
     <script src="evaluations.js"></script>
 </body>

@@ -642,13 +642,106 @@ app.delete('/api/terms/:id', async (req, res) => {
 app.get('/api/categories', async (req, res) => {
     let connection;
     try {
+        const termId = parseId(req.query.term_id) || 1;
         connection = await pool.getConnection();
         const [categories] = await connection.query(`
             SELECT id, name, weight_percentage
             FROM evaluation_categories
-            WHERE term_id = 1
-        `);
+            WHERE term_id = ?
+            ORDER BY id ASC
+        `, [termId]);
         res.json(categories);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+app.post('/api/categories', async (req, res) => {
+    let connection;
+    try {
+        const termId = parseId(req.body.term_id);
+        const weight = Number.parseFloat(req.body.weight_percentage);
+        const { name } = req.body;
+
+        if (!termId || !requiredText(name)) {
+            return res.status(400).json({ error: 'Parcial y nombre de categoria son obligatorios' });
+        }
+        if (Number.isNaN(weight) || weight <= 0 || weight > 100) {
+            return res.status(400).json({ error: 'El porcentaje debe estar entre 0 y 100' });
+        }
+
+        connection = await pool.getConnection();
+
+        const [termRows] = await connection.query(
+            'SELECT id, is_closed FROM terms WHERE id = ? LIMIT 1',
+            [termId]
+        );
+        if (termRows.length === 0) {
+            return res.status(404).json({ error: 'Parcial no encontrado' });
+        }
+        if (termRows[0].is_closed) {
+            return res.status(400).json({ error: 'No se pueden modificar ponderaciones de un parcial cerrado' });
+        }
+
+        const [sumRows] = await connection.query(
+            'SELECT COALESCE(SUM(weight_percentage), 0) as total FROM evaluation_categories WHERE term_id = ?',
+            [termId]
+        );
+        const currentTotal = Number.parseFloat(sumRows[0].total);
+
+        if (currentTotal + weight > 100.0001) {
+            return res.status(400).json({
+                error: `La suma de ponderaciones no puede superar 100%. Actualmente tienes ${currentTotal}%`
+            });
+        }
+
+        const [result] = await connection.query(
+            'INSERT INTO evaluation_categories (term_id, name, weight_percentage) VALUES (?, ?, ?)',
+            [termId, name.trim(), weight]
+        );
+
+        res.json({ success: true, id: result.insertId, message: 'Categoria creada con exito' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+app.delete('/api/categories/:id', async (req, res) => {
+    let connection;
+    try {
+        const id = parseId(req.params.id);
+        if (!id) return res.status(400).json({ error: 'ID invalido' });
+
+        connection = await pool.getConnection();
+
+        const [categoryRows] = await connection.query(`
+            SELECT ec.id, t.is_closed
+            FROM evaluation_categories ec
+            JOIN terms t ON ec.term_id = t.id
+            WHERE ec.id = ?
+            LIMIT 1
+        `, [id]);
+
+        if (categoryRows.length === 0) {
+            return res.status(404).json({ error: 'Categoria no encontrada' });
+        }
+        if (categoryRows[0].is_closed) {
+            return res.status(400).json({ error: 'No se pueden modificar ponderaciones de un parcial cerrado' });
+        }
+
+        const [result] = await connection.query('DELETE FROM evaluation_categories WHERE id = ?', [id]);
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Categoria no encontrada' });
+        }
+
+        res.json({ success: true, message: 'Categoria eliminada con exito' });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: error.message });
