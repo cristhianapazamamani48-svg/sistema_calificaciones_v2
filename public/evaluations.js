@@ -1,143 +1,178 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const evaluationForm = document.getElementById('evaluationForm');
-    const evaluationNameInput = document.getElementById('evaluationName');
-    const categorySelect = document.getElementById('categorySelect');
-    const evaluationsContainer = document.getElementById('evaluationsContainer');
+    const assignmentSelect = document.getElementById('assignmentSelect');
+    const assignmentHint = document.getElementById('assignmentHint');
+    const termForm = document.getElementById('termForm');
+    const termName = document.getElementById('termName');
+    const officialWeight = document.getElementById('officialWeight');
+    const termsList = document.getElementById('termsList');
 
-    async function loadCategories() {
-        try {
-            const response = await fetch('/api/categories');
-            const categories = await response.json();
+    let selectedAssignmentId = '';
 
-            categorySelect.innerHTML = '<option value="" disabled selected>Selecciona una categoria...</option>';
-            categories.forEach((cat) => {
-                const option = document.createElement('option');
-                option.value = cat.id;
-                option.textContent = `${cat.name} (${cat.weight_percentage}%)`;
-                categorySelect.appendChild(option);
-            });
-        } catch (error) {
-            console.error('Error al cargar categorias:', error);
+    async function requestJson(url, options) {
+        const response = await fetch(url, options);
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'No se pudo completar la accion');
+        }
+
+        return data;
+    }
+
+    function emptyMessage(text) {
+        const p = document.createElement('p');
+        p.className = 'empty-message';
+        p.textContent = text;
+        return p;
+    }
+
+    async function loadAssignments() {
+        const assignments = await requestJson('/api/course-assignments');
+        assignmentSelect.innerHTML = '<option value="">Selecciona grupo y materia</option>';
+
+        assignments.forEach((assignment) => {
+            const option = document.createElement('option');
+            option.value = assignment.id;
+            option.textContent = `${assignment.unique_code} - ${assignment.subject_name}`;
+            option.dataset.group = assignment.group_name;
+            option.dataset.subject = assignment.subject_name;
+            option.dataset.campus = assignment.campus_name;
+            assignmentSelect.appendChild(option);
+        });
+
+        if (assignments.length === 0) {
+            assignmentHint.textContent = 'Primero asocia una materia a un grupo en Configuracion.';
         }
     }
 
-    async function loadEvaluations() {
-        try {
-            const response = await fetch('/api/evaluations');
-            const evaluations = await response.json();
+    async function loadTerms() {
+        termsList.innerHTML = '';
 
-            evaluationsContainer.innerHTML = '';
-
-            if (evaluations.length === 0) {
-                evaluationsContainer.innerHTML = '<p class="no-students">No hay evaluaciones creadas.</p>';
-                return;
-            }
-
-            const grouped = {};
-            evaluations.forEach((ev) => {
-                if (!grouped[ev.category_name]) {
-                    grouped[ev.category_name] = [];
-                }
-                grouped[ev.category_name].push(ev);
-            });
-
-            for (const [categoryName, evList] of Object.entries(grouped)) {
-                const groupDiv = document.createElement('div');
-                groupDiv.style.marginBottom = '1.5rem';
-
-                const groupTitle = document.createElement('h4');
-                groupTitle.style.color = 'var(--primary)';
-                groupTitle.style.marginBottom = '0.5rem';
-                groupTitle.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
-                groupTitle.style.paddingBottom = '0.2rem';
-                groupTitle.textContent = categoryName;
-                groupDiv.appendChild(groupTitle);
-
-                const ul = document.createElement('ul');
-                ul.style.listStyle = 'none';
-                ul.style.padding = '0';
-
-                evList.forEach((ev) => {
-                    const li = document.createElement('li');
-                    li.className = 'student-item';
-                    li.innerHTML = `
-                        <div class="student-info">
-                            <span class="student-name">${ev.name}</span>
-                        </div>
-                        <button class="btn-delete" data-id="${ev.id}" title="Eliminar evaluacion">Eliminar</button>
-                    `;
-                    ul.appendChild(li);
-                });
-
-                groupDiv.appendChild(ul);
-                evaluationsContainer.appendChild(groupDiv);
-            }
-
-            document.querySelectorAll('.btn-delete').forEach((button) => {
-                button.addEventListener('click', handleDeleteEvaluation);
-            });
-        } catch (error) {
-            console.error('Error al cargar evaluaciones:', error);
-        }
-    }
-
-    evaluationForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const name = evaluationNameInput.value.trim();
-        const category_id = categorySelect.value;
-
-        if (!name || !category_id) return;
-
-        try {
-            const response = await fetch('/api/evaluations', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, category_id })
-            });
-
-            const result = await response.json();
-            if (result.success) {
-                evaluationNameInput.value = '';
-                categorySelect.selectedIndex = 0;
-                await loadEvaluations();
-            } else {
-                alert('Error al registrar evaluacion: ' + (result.error || 'Ocurrio un error'));
-            }
-        } catch (error) {
-            console.error('Error al agregar evaluacion:', error);
-        }
-    });
-
-    async function handleDeleteEvaluation(e) {
-        const id = e.currentTarget.getAttribute('data-id');
-        const evItem = e.currentTarget.closest('.student-item');
-        const name = evItem.querySelector('.student-name').textContent;
-
-        if (!confirm(`Eliminar la evaluacion "${name}"? Esta accion borrara sus calificaciones asociadas.`)) {
+        if (!selectedAssignmentId) {
+            termsList.appendChild(emptyMessage('Selecciona una materia del grupo para ver sus parciales.'));
             return;
         }
 
         try {
-            const response = await fetch(`/api/evaluations/${id}`, {
-                method: 'DELETE'
-            });
-            const result = await response.json();
+            const terms = await requestJson(`/api/terms?course_assignment_id=${selectedAssignmentId}`);
 
-            if (result.success) {
-                evItem.style.opacity = '0';
-                evItem.style.transform = 'translateX(20px)';
-                evItem.style.transition = 'all 0.3s ease';
-                setTimeout(() => {
-                    loadEvaluations();
-                }, 300);
-            } else {
-                alert('Error al eliminar: ' + (result.error || 'Ocurrio un error'));
+            if (terms.length === 0) {
+                termsList.appendChild(emptyMessage('Todavia no hay parciales creados para esta materia.'));
+                return;
             }
+
+            terms.forEach((term) => {
+                const item = document.createElement('article');
+                item.className = 'config-item';
+
+                const content = document.createElement('div');
+                const title = document.createElement('strong');
+                title.textContent = term.name;
+
+                const detail = document.createElement('span');
+                const status = term.is_closed ? 'Cerrado' : 'Abierto';
+                detail.textContent = `Valor oficial: ${term.official_weight} puntos | Estado: ${status}`;
+
+                const actions = document.createElement('div');
+                actions.className = 'item-actions';
+
+                const toggleButton = document.createElement('button');
+                toggleButton.className = term.is_closed ? 'btn-secondary' : 'btn-primary-soft';
+                toggleButton.type = 'button';
+                toggleButton.textContent = term.is_closed ? 'Reabrir' : 'Cerrar';
+                toggleButton.addEventListener('click', () => toggleTermStatus(term.id, !term.is_closed));
+
+                const deleteButton = document.createElement('button');
+                deleteButton.className = 'btn-delete';
+                deleteButton.type = 'button';
+                deleteButton.textContent = 'Eliminar';
+                deleteButton.addEventListener('click', () => deleteTerm(term.id, term.name));
+
+                actions.appendChild(toggleButton);
+                actions.appendChild(deleteButton);
+                content.appendChild(title);
+                content.appendChild(detail);
+                item.appendChild(content);
+                item.appendChild(actions);
+                termsList.appendChild(item);
+            });
         } catch (error) {
-            console.error('Error al eliminar evaluacion:', error);
+            console.error('Error cargando parciales:', error);
+            termsList.appendChild(emptyMessage(error.message));
         }
     }
 
-    loadCategories();
-    loadEvaluations();
+    assignmentSelect.addEventListener('change', async () => {
+        selectedAssignmentId = assignmentSelect.value;
+        const selected = assignmentSelect.options[assignmentSelect.selectedIndex];
+
+        assignmentHint.textContent = selectedAssignmentId
+            ? `${selected.dataset.group} | ${selected.dataset.subject} | ${selected.dataset.campus}`
+            : 'Selecciona una materia asociada a un grupo.';
+
+        await loadTerms();
+    });
+
+    termForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        if (!selectedAssignmentId) {
+            alert('Primero selecciona una materia del grupo.');
+            return;
+        }
+
+        try {
+            await requestJson('/api/terms', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    course_assignment_id: selectedAssignmentId,
+                    name: termName.value,
+                    official_weight: officialWeight.value
+                })
+            });
+
+            termForm.reset();
+            officialWeight.value = 25;
+            await loadTerms();
+        } catch (error) {
+            alert(error.message);
+        }
+    });
+
+    async function toggleTermStatus(id, isClosed) {
+        const action = isClosed ? 'cerrar' : 'reabrir';
+        if (!confirm(`Deseas ${action} este parcial?`)) return;
+
+        try {
+            await requestJson(`/api/terms/${id}/status`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ is_closed: isClosed })
+            });
+            await loadTerms();
+        } catch (error) {
+            alert(error.message);
+        }
+    }
+
+    async function deleteTerm(id, name) {
+        if (!confirm(`Eliminar el parcial "${name}"? Tambien se eliminaran sus categorias, evaluaciones y notas asociadas.`)) {
+            return;
+        }
+
+        try {
+            await requestJson(`/api/terms/${id}`, { method: 'DELETE' });
+            await loadTerms();
+        } catch (error) {
+            alert(error.message);
+        }
+    }
+
+    loadAssignments()
+        .then(loadTerms)
+        .catch((error) => {
+            console.error('Error cargando evaluaciones:', error);
+            alert('No se pudo cargar la pantalla de evaluaciones.');
+        });
 });

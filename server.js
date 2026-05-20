@@ -528,6 +528,117 @@ app.delete('/api/course-assignments/:id', async (req, res) => {
     }
 });
 
+app.get('/api/terms', async (req, res) => {
+    let connection;
+    try {
+        const courseAssignmentId = parseId(req.query.course_assignment_id);
+        if (!courseAssignmentId) {
+            return res.status(400).json({ error: 'Debe seleccionar una materia de un grupo' });
+        }
+
+        connection = await pool.getConnection();
+        const [terms] = await connection.query(`
+            SELECT id, course_assignment_id, name, official_weight, is_closed, closed_at, created_at
+            FROM terms
+            WHERE course_assignment_id = ?
+            ORDER BY id ASC
+        `, [courseAssignmentId]);
+
+        res.json(terms);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+app.post('/api/terms', async (req, res) => {
+    let connection;
+    try {
+        const courseAssignmentId = parseId(req.body.course_assignment_id);
+        const officialWeight = Number.parseFloat(req.body.official_weight || 25);
+        const { name } = req.body;
+
+        if (!courseAssignmentId || !requiredText(name)) {
+            return res.status(400).json({ error: 'Materia del grupo y nombre del parcial son obligatorios' });
+        }
+        if (Number.isNaN(officialWeight) || officialWeight <= 0 || officialWeight > 100) {
+            return res.status(400).json({ error: 'Valor oficial del parcial invalido' });
+        }
+
+        connection = await pool.getConnection();
+        const [assignment] = await connection.query(
+            'SELECT id FROM course_assignments WHERE id = ? LIMIT 1',
+            [courseAssignmentId]
+        );
+
+        if (assignment.length === 0) {
+            return res.status(404).json({ error: 'La materia del grupo no existe' });
+        }
+
+        const [result] = await connection.query(
+            'INSERT INTO terms (course_assignment_id, name, official_weight) VALUES (?, ?, ?)',
+            [courseAssignmentId, name.trim(), officialWeight]
+        );
+
+        res.json({ success: true, id: result.insertId, message: 'Parcial creado con exito' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+app.patch('/api/terms/:id/status', async (req, res) => {
+    let connection;
+    try {
+        const id = parseId(req.params.id);
+        const isClosed = Boolean(req.body.is_closed);
+        if (!id) return res.status(400).json({ error: 'ID invalido' });
+
+        connection = await pool.getConnection();
+        const [result] = await connection.query(
+            'UPDATE terms SET is_closed = ?, closed_at = ? WHERE id = ?',
+            [isClosed, isClosed ? new Date() : null, id]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Parcial no encontrado' });
+        }
+
+        res.json({ success: true, message: isClosed ? 'Parcial cerrado' : 'Parcial reabierto' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+app.delete('/api/terms/:id', async (req, res) => {
+    let connection;
+    try {
+        const id = parseId(req.params.id);
+        if (!id) return res.status(400).json({ error: 'ID invalido' });
+
+        connection = await pool.getConnection();
+        const [result] = await connection.query('DELETE FROM terms WHERE id = ?', [id]);
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Parcial no encontrado' });
+        }
+
+        res.json({ success: true, message: 'Parcial eliminado con exito' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
 app.get('/api/categories', async (req, res) => {
     let connection;
     try {
