@@ -1,5 +1,5 @@
-const URL_API_DASHBOARD = 'http://192.168.100.77:7000/api/dashboard';
-const URL_API_GRADES = 'http://192.168.100.77:7000/api/grades';
+const URL_API_DASHBOARD = '/api/dashboard';
+const URL_API_GRADES = '/api/grades';
 
 let datosGlobales = null;
 

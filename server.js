@@ -12,7 +12,7 @@ app.use(express.static('public'));
 
 // Una ruta básica de prueba
 app.get('/api/estado', (req, res) => {
-    res.json({ mensaje: 'Sistema de Calificaciones Operativo' });
+    res.json({ mensaje: 'Sistema de Calificaciones V2 Operativo' });
 });
 
 
@@ -260,6 +260,6 @@ app.delete('/api/evaluations/:id', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`Servidor de Calificaciones corriendo en el puerto ${PORT}`);
+    console.log(`Servidor de Calificaciones V2 corriendo en el puerto ${PORT}`);
 });
 

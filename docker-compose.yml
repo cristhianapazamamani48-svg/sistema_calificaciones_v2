@@ -1,10 +1,10 @@
 services:
   app:
     build: .
-    container_name: calificaciones_app
+    container_name: calificaciones_v2_app
     restart: unless-stopped
     ports:
-      - "7000:3000"
+      - "7001:3000"
     env_file:
       - .env
     depends_on:
@@ -12,13 +12,13 @@ services:
 
   db:
     image: mysql:8.0
-    container_name: calificaciones_db
+    container_name: calificaciones_v2_db
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: 3443
-      MYSQL_DATABASE: calificaciones_db
+      MYSQL_DATABASE: calificaciones_v2_db
     volumes:
-      - calificaciones_mysql_data:/var/lib/mysql
+      - calificaciones_v2_mysql_data:/var/lib/mysql
 
 volumes:
-  calificaciones_mysql_data:
+  calificaciones_v2_mysql_data:
