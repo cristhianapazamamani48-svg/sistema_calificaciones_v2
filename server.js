@@ -163,14 +163,30 @@ app.post('/api/grades', async (req, res) => {
 app.get('/api/students', async (req, res) => {
     let connection;
     try {
+        const groupId = parseId(req.query.group_id);
         connection = await pool.getConnection();
-        const [estudiantes] = await connection.query(`
-            SELECT s.id, s.name, s.phone, s.notes, e.created_at
-            FROM students s
-            JOIN enrollments e ON s.id = e.student_id
-            WHERE e.course_assignment_id = 1 AND e.is_active = TRUE
-            ORDER BY s.name ASC
-        `);
+
+        let estudiantes;
+        if (groupId) {
+            [estudiantes] = await connection.query(`
+                SELECT s.id, s.name, s.phone, s.notes, s.status,
+                       MIN(e.created_at) as created_at,
+                       COUNT(DISTINCT e.course_assignment_id) as assigned_subjects
+                FROM students s
+                JOIN enrollments e ON s.id = e.student_id
+                JOIN course_assignments ca ON e.course_assignment_id = ca.id
+                WHERE ca.group_id = ? AND e.is_active = TRUE
+                GROUP BY s.id, s.name, s.phone, s.notes, s.status
+                ORDER BY s.name ASC
+            `, [groupId]);
+        } else {
+            [estudiantes] = await connection.query(`
+                SELECT s.id, s.name, s.phone, s.notes, s.status, s.created_at, 0 as assigned_subjects
+                FROM students s
+                ORDER BY s.name ASC
+            `);
+        }
+
         res.json(estudiantes);
     } catch (error) {
         console.error(error);
@@ -184,21 +200,43 @@ app.post('/api/students', async (req, res) => {
     let connection;
     try {
         const { name, phone, notes } = req.body;
+        const groupId = parseId(req.body.group_id);
         if (!requiredText(name)) {
             return res.status(400).json({ error: 'El nombre es obligatorio' });
         }
+        if (!groupId) {
+            return res.status(400).json({ error: 'Debe seleccionar un grupo' });
+        }
 
         connection = await pool.getConnection();
+
+        const [assignments] = await connection.query(
+            'SELECT id FROM course_assignments WHERE group_id = ?',
+            [groupId]
+        );
+
+        if (assignments.length === 0) {
+            return res.status(400).json({ error: 'El grupo seleccionado no tiene materias asociadas' });
+        }
+
         const [estudiante] = await connection.query(
             'INSERT INTO students (name, phone, notes) VALUES (?, ?, ?)',
             [name.trim(), phone?.trim() || null, notes?.trim() || null]
         );
-        await connection.query(
-            'INSERT INTO enrollments (student_id, course_assignment_id) VALUES (?, ?)',
-            [estudiante.insertId, 1]
-        );
 
-        res.json({ success: true, message: 'Estudiante matriculado con exito', id: estudiante.insertId });
+        for (const assignment of assignments) {
+            await connection.query(
+                'INSERT INTO enrollments (student_id, course_assignment_id) VALUES (?, ?)',
+                [estudiante.insertId, assignment.id]
+            );
+        }
+
+        res.json({
+            success: true,
+            message: 'Estudiante matriculado en el grupo con exito',
+            id: estudiante.insertId,
+            enrollments_created: assignments.length
+        });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: error.message });

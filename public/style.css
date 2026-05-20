@@ -197,8 +197,25 @@ input[type="number"]::-webkit-inner-spin-button {
     gap: 1.5rem;
 }
 
+.students-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
 .panel {
     padding: 2rem;
+}
+
+.students-panel {
+    margin-top: 1.5rem;
+}
+
+.helper-text {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    line-height: 1.5;
 }
 
 .assignments-panel {
@@ -357,6 +374,10 @@ input[type="number"]::-webkit-inner-spin-button {
     }
 
     .config-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .students-layout {
         grid-template-columns: 1fr;
     }
 
