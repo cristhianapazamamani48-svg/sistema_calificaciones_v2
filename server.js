@@ -110,6 +110,73 @@ app.post('/api/grades', async (req, res) => {
     }
 });
 
+// RUTA OBTENER ESTUDIANTES: Devuelve la lista de estudiantes para el panel de administración
+app.get('/api/students', async (req, res) => {
+    try {
+        const connection = await pool.getConnection();
+        const [estudiantes] = await connection.query(`
+            SELECT s.id, s.name, e.created_at 
+            FROM students s
+            JOIN enrollments e ON s.id = e.student_id
+            WHERE e.course_assignment_id = 1 AND e.is_active = TRUE
+            ORDER BY s.name ASC
+        `);
+        connection.release();
+        res.json(estudiantes);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// RUTA AGREGAR ESTUDIANTE: Registra un nuevo estudiante y lo matricula en el curso
+app.post('/api/students', async (req, res) => {
+    try {
+        const { name } = req.body;
+        if (!name || name.trim() === '') {
+            return res.status(400).json({ error: 'El nombre es obligatorio' });
+        }
+
+        const connection = await pool.getConnection();
+
+        // 1. Crear al estudiante
+        const [estudiante] = await connection.query('INSERT INTO students (name) VALUES (?)', [name.trim()]);
+
+        // 2. Matricularlo en el curso (asignación = 1 por ahora)
+        await connection.query('INSERT INTO enrollments (student_id, course_assignment_id) VALUES (?, ?)', [estudiante.insertId, 1]);
+
+        connection.release();
+        res.json({ success: true, message: 'Estudiante matriculado con éxito', id: estudiante.insertId });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// RUTA ELIMINAR ESTUDIANTE: Desmatricula y elimina al estudiante de la base de datos
+app.delete('/api/students/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const connection = await pool.getConnection();
+
+        // Al estar configurada la clave foránea con ON DELETE CASCADE en enrollments y grades,
+        // al eliminar al estudiante de la tabla 'students', automáticamente se limpiará su matrícula y sus notas.
+        const [result] = await connection.query('DELETE FROM students WHERE id = ?', [id]);
+
+        connection.release();
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Estudiante no encontrado' });
+        }
+
+        res.json({ success: true, message: 'Estudiante eliminado con éxito' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Estudiantes - Infocal</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="dashboard-container">
+        <header>
+            <h1>Gestor de Calificaciones</h1>
+            <p>1er Año Mañana - Sistemas Informáticos</p>
+            <nav style="margin-top: 1rem; margin-bottom: 1.5rem;">
+                <a href="/"
+                    style="color: var(--text-muted); text-decoration: none; margin-right: 20px; font-weight: bold; font-size: 1.1rem; transition: color 0.3s;">📊
+                    Tabla de Notas</a>
+                <a href="/students.html"
+                    style="color: var(--primary); text-decoration: none; font-weight: bold; font-size: 1.1rem; border-bottom: 2px solid var(--primary); padding-bottom: 5px;">👥
+                    Gestión de Estudiantes</a>
+            </nav>
+        </header>
+
+        <div class="table-wrapper" style="padding: 2rem; max-width: 600px; margin: 0 auto;">
+            <h2 style="margin-bottom: 1.5rem; text-align: center; color: var(--primary);">Matricular Nuevo Estudiante
+            </h2>
+
+            <form id="studentForm" style="display: flex; gap: 10px; margin-bottom: 2rem;">
+                <input type="text" id="studentName" placeholder="Nombre completo del estudiante" required
+                    style="flex: 1; padding: 0.8rem; border-radius: 6px; border: 1px solid var(--border); background: rgba(15, 23, 42, 0.5); color: white; font-size: 1rem;">
+                <button type="submit"
+                    style="padding: 0.8rem 1.5rem; background: var(--primary); color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; transition: background 0.3s;">
+                    Matricular
+                </button>
+            </form>
+
+            <h3
+                style="margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; color: var(--text-muted);">
+                Lista del Curso (1er Año Mañana)</h3>
+
+            <ul id="studentsList" style="list-style: none; padding: 0;">
+                <!-- Aquí se cargarán los estudiantes dinámicamente -->
+            </ul>
+        </div>
+    </div>
+    <script src="students.js"></script>
+</body>
+
+</html>
