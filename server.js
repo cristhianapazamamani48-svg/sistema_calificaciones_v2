@@ -177,6 +177,86 @@ app.delete('/api/students/:id', async (req, res) => {
 });
 
 
+// ==========================================
+// NUEVOS ENDPOINTS: GESTIÓN DE EVALUACIONES
+// ==========================================
+
+// RUTA OBTENER CATEGORÍAS: Obtiene las categorías de evaluación asociadas al primer parcial (term_id = 1)
+app.get('/api/categories', async (req, res) => {
+    try {
+        const connection = await pool.getConnection();
+        const [categories] = await connection.query(`
+            SELECT id, name, weight_percentage 
+            FROM evaluation_categories 
+            WHERE term_id = 1
+        `);
+        connection.release();
+        res.json(categories);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// RUTA OBTENER EVALUACIONES: Obtiene todas las evaluaciones con el nombre de su categoría correspondiente
+app.get('/api/evaluations', async (req, res) => {
+    try {
+        const connection = await pool.getConnection();
+        const [evaluaciones] = await connection.query(`
+            SELECT e.id, e.name, e.category_id, c.name as category_name 
+            FROM evaluations e
+            JOIN evaluation_categories c ON e.category_id = c.id
+            WHERE c.term_id = 1
+            ORDER BY c.name ASC, e.name ASC
+        `);
+        connection.release();
+        res.json(evaluaciones);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// RUTA AGREGAR EVALUACIÓN: Registra una nueva evaluación asignada a una categoría
+app.post('/api/evaluations', async (req, res) => {
+    try {
+        const { category_id, name } = req.body;
+        if (!category_id || !name || name.trim() === '') {
+            return res.status(400).json({ error: 'La categoría y el nombre son obligatorios' });
+        }
+
+        const connection = await pool.getConnection();
+        const [result] = await connection.query(
+            'INSERT INTO evaluations (category_id, name) VALUES (?, ?)',
+            [category_id, name.trim()]
+        );
+        connection.release();
+
+        res.json({ success: true, id: result.insertId, message: 'Evaluación creada con éxito' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// RUTA ELIMINAR EVALUACIÓN: Borra una evaluación (y limpia sus notas asociadas gracias a ON DELETE CASCADE)
+app.delete('/api/evaluations/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const connection = await pool.getConnection();
+        const [result] = await connection.query('DELETE FROM evaluations WHERE id = ?', [id]);
+        connection.release();
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Evaluación no encontrada' });
+        }
+        res.json({ success: true, message: 'Evaluación eliminada con éxito' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
