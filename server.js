@@ -746,6 +746,126 @@ app.get('/api/reports/course-assignment/:id', async (req, res) => {
     }
 });
 
+app.get('/api/reports/term/:id', async (req, res) => {
+    let connection;
+    try {
+        const termId = parseId(req.params.id);
+        if (!termId) return res.status(400).json({ error: 'ID invalido' });
+
+        connection = await pool.getConnection();
+
+        const [contextRows] = await connection.query(`
+            SELECT t.id as term_id, t.name as term_name, t.official_weight, t.is_closed,
+                   ca.id as course_assignment_id, ag.id as group_id, ag.unique_code,
+                   ag.name as group_name, ag.career, ag.level_name, ag.shift,
+                   ag.class_modality, ag.academic_type, ag.academic_year, ag.passing_score,
+                   c.name as campus_name, s.name as subject_name, u.name as teacher_name,
+                   ap.name as academic_period_name
+            FROM terms t
+            JOIN course_assignments ca ON t.course_assignment_id = ca.id
+            JOIN academic_groups ag ON ca.group_id = ag.id
+            JOIN campuses c ON ag.campus_id = c.id
+            JOIN subjects s ON ca.subject_id = s.id
+            JOIN users u ON ca.teacher_id = u.id
+            JOIN academic_periods ap ON ca.academic_period_id = ap.id
+            WHERE t.id = ?
+            LIMIT 1
+        `, [termId]);
+
+        if (contextRows.length === 0) {
+            return res.status(404).json({ error: 'Parcial no encontrado' });
+        }
+
+        const context = contextRows[0];
+
+        const [students] = await connection.query(`
+            SELECT DISTINCT s.id, s.name, s.phone, s.status
+            FROM students s
+            JOIN enrollments e ON s.id = e.student_id
+            WHERE e.course_assignment_id = ? AND e.is_active = TRUE
+            ORDER BY s.name ASC
+        `, [context.course_assignment_id]);
+
+        const [evaluations] = await connection.query(`
+            SELECT ec.id as category_id, ec.name as category_name, ec.weight_percentage,
+                   e.id as evaluation_id, e.name as evaluation_name
+            FROM evaluation_categories ec
+            JOIN evaluations e ON e.category_id = ec.id
+            WHERE ec.term_id = ?
+            ORDER BY ec.id ASC, e.id ASC
+        `, [termId]);
+
+        const evaluationIds = evaluations.map((evaluation) => evaluation.evaluation_id);
+        let grades = [];
+        if (evaluationIds.length > 0) {
+            const placeholders = evaluationIds.map(() => '?').join(', ');
+            const [gradeRows] = await connection.query(
+                `SELECT student_id, evaluation_id, score FROM grades WHERE evaluation_id IN (${placeholders})`,
+                evaluationIds
+            );
+            grades = gradeRows;
+        }
+
+        const gradeMap = new Map();
+        grades.forEach((grade) => {
+            gradeMap.set(`${grade.student_id}_${grade.evaluation_id}`, Number.parseFloat(grade.score));
+        });
+
+        const categories = {};
+        evaluations.forEach((evaluation) => {
+            if (!categories[evaluation.category_id]) {
+                categories[evaluation.category_id] = {
+                    id: evaluation.category_id,
+                    name: evaluation.category_name,
+                    weight_percentage: Number.parseFloat(evaluation.weight_percentage),
+                    evaluations: []
+                };
+            }
+            categories[evaluation.category_id].evaluations.push(evaluation);
+        });
+
+        const rows = students.map((student) => {
+            let internalScore = 0;
+            const gradeValues = {};
+
+            Object.values(categories).forEach((category) => {
+                const sum = category.evaluations.reduce((total, evaluation) => {
+                    const score = gradeMap.get(`${student.id}_${evaluation.evaluation_id}`);
+                    gradeValues[evaluation.evaluation_id] = Number.isFinite(score) ? score : null;
+                    return total + (Number.isFinite(score) ? score : 0);
+                }, 0);
+
+                const average = category.evaluations.length > 0 ? sum / category.evaluations.length : 0;
+                internalScore += average * (category.weight_percentage / 100);
+            });
+
+            const officialScore = internalScore * (Number.parseFloat(context.official_weight) / 100);
+
+            return {
+                id: student.id,
+                name: student.name,
+                phone: student.phone,
+                grades: gradeValues,
+                internal_score: Number(internalScore.toFixed(2)),
+                official_score: Number(officialScore.toFixed(2))
+            };
+        });
+
+        res.json({
+            generated_at: new Date().toISOString(),
+            context,
+            categories: Object.values(categories),
+            evaluations,
+            rows
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
 app.get('/api/terms', async (req, res) => {
     let connection;
     try {

@@ -438,6 +438,19 @@ input[type="number"]::-webkit-inner-spin-button {
     margin-bottom: 1rem;
 }
 
+.report-context-full {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.report-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    margin-bottom: 1rem;
+    color: #475569;
+    font-size: 0.9rem;
+}
+
 .report-summary {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -489,6 +502,10 @@ input[type="number"]::-webkit-inner-spin-button {
 
 .report-name {
     text-align: left !important;
+}
+
+.report-wide {
+    font-size: 0.8rem;
 }
 
 .approved {
