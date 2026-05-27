@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Reportes V2 - Infocal</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="dashboard-container">
+        <header class="screen-only">
+            <h1>Gestor de Calificaciones V2</h1>
+            <p>Reportes academicos imprimibles</p>
+            <nav class="main-nav">
+                <a href="/">Tabla de Notas</a>
+                <a href="/students.html">Estudiantes</a>
+                <a href="/evaluations.html">Evaluaciones</a>
+                <a href="/config.html">Configuracion</a>
+                <a href="/reports.html" class="active">Reportes</a>
+            </nav>
+        </header>
+
+        <section class="panel dashboard-controls screen-only">
+            <div class="control-field">
+                <label for="assignmentSelect">Grupo y materia</label>
+                <select id="assignmentSelect"></select>
+            </div>
+            <div class="control-field">
+                <label for="reportType">Tipo de reporte</label>
+                <select id="reportType">
+                    <option value="summary">Resumen general</option>
+                </select>
+            </div>
+            <div class="control-actions">
+                <button id="printButton" type="button">Imprimir / PDF</button>
+            </div>
+        </section>
+
+        <section id="reportOutput" class="report-sheet">
+            <div class="report-empty">Selecciona un grupo y materia para generar el reporte.</div>
+        </section>
+    </div>
+    <script src="reports.js"></script>
+</body>
+
+</html>

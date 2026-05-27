@@ -551,7 +551,26 @@ app.post('/api/course-assignments', async (req, res) => {
             [teacherId, subjectId, groupId, academicPeriodId]
         );
 
-        res.json({ success: true, id: result.insertId, message: 'Materia asociada al grupo con exito' });
+        const [existingStudents] = await connection.query(`
+            SELECT DISTINCT e.student_id
+            FROM enrollments e
+            JOIN course_assignments ca ON e.course_assignment_id = ca.id
+            WHERE ca.group_id = ? AND e.is_active = TRUE
+        `, [groupId]);
+
+        for (const student of existingStudents) {
+            await connection.query(
+                'INSERT INTO enrollments (student_id, course_assignment_id) VALUES (?, ?)',
+                [student.student_id, result.insertId]
+            );
+        }
+
+        res.json({
+            success: true,
+            id: result.insertId,
+            message: 'Materia asociada al grupo con exito',
+            enrollments_created: existingStudents.length
+        });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: error.message });
@@ -574,6 +593,151 @@ app.delete('/api/course-assignments/:id', async (req, res) => {
         }
 
         res.json({ success: true, message: 'Asociacion eliminada con exito' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+app.get('/api/reports/course-assignment/:id', async (req, res) => {
+    let connection;
+    try {
+        const courseAssignmentId = parseId(req.params.id);
+        if (!courseAssignmentId) return res.status(400).json({ error: 'ID invalido' });
+
+        connection = await pool.getConnection();
+
+        const [contextRows] = await connection.query(`
+            SELECT ca.id as course_assignment_id, ag.id as group_id, ag.unique_code,
+                   ag.name as group_name, ag.career, ag.level_name, ag.shift,
+                   ag.class_modality, ag.academic_type, ag.academic_year, ag.passing_score,
+                   c.name as campus_name, s.name as subject_name, u.name as teacher_name,
+                   ap.name as academic_period_name
+            FROM course_assignments ca
+            JOIN academic_groups ag ON ca.group_id = ag.id
+            JOIN campuses c ON ag.campus_id = c.id
+            JOIN subjects s ON ca.subject_id = s.id
+            JOIN users u ON ca.teacher_id = u.id
+            JOIN academic_periods ap ON ca.academic_period_id = ap.id
+            WHERE ca.id = ?
+            LIMIT 1
+        `, [courseAssignmentId]);
+
+        if (contextRows.length === 0) {
+            return res.status(404).json({ error: 'Materia del grupo no encontrada' });
+        }
+
+        const context = contextRows[0];
+
+        const [students] = await connection.query(`
+            SELECT DISTINCT s.id, s.name, s.phone, s.notes, s.status
+            FROM students s
+            JOIN enrollments e ON s.id = e.student_id
+            WHERE e.course_assignment_id = ? AND e.is_active = TRUE
+            ORDER BY s.name ASC
+        `, [courseAssignmentId]);
+
+        const [terms] = await connection.query(`
+            SELECT id, name, official_weight, is_closed
+            FROM terms
+            WHERE course_assignment_id = ?
+            ORDER BY id ASC
+        `, [courseAssignmentId]);
+
+        const [evaluations] = await connection.query(`
+            SELECT t.id as term_id, t.name as term_name, t.official_weight,
+                   ec.id as category_id, ec.name as category_name, ec.weight_percentage,
+                   e.id as evaluation_id, e.name as evaluation_name
+            FROM terms t
+            JOIN evaluation_categories ec ON ec.term_id = t.id
+            JOIN evaluations e ON e.category_id = ec.id
+            WHERE t.course_assignment_id = ?
+            ORDER BY t.id ASC, ec.id ASC, e.id ASC
+        `, [courseAssignmentId]);
+
+        const evaluationIds = evaluations.map((evaluation) => evaluation.evaluation_id);
+        let grades = [];
+        if (evaluationIds.length > 0) {
+            const placeholders = evaluationIds.map(() => '?').join(', ');
+            const [gradeRows] = await connection.query(
+                `SELECT student_id, evaluation_id, score FROM grades WHERE evaluation_id IN (${placeholders})`,
+                evaluationIds
+            );
+            grades = gradeRows;
+        }
+
+        const gradeMap = new Map();
+        grades.forEach((grade) => {
+            gradeMap.set(`${grade.student_id}_${grade.evaluation_id}`, Number.parseFloat(grade.score));
+        });
+
+        const evaluationsByTerm = {};
+        evaluations.forEach((evaluation) => {
+            if (!evaluationsByTerm[evaluation.term_id]) evaluationsByTerm[evaluation.term_id] = [];
+            evaluationsByTerm[evaluation.term_id].push(evaluation);
+        });
+
+        const rows = students.map((student) => {
+            let totalOfficial = 0;
+            const termResults = terms.map((term) => {
+                const termEvaluations = evaluationsByTerm[term.id] || [];
+                const categories = {};
+
+                termEvaluations.forEach((evaluation) => {
+                    if (!categories[evaluation.category_id]) {
+                        categories[evaluation.category_id] = {
+                            weight: Number.parseFloat(evaluation.weight_percentage),
+                            evaluations: []
+                        };
+                    }
+                    categories[evaluation.category_id].evaluations.push(evaluation);
+                });
+
+                let internalScore = 0;
+                Object.values(categories).forEach((category) => {
+                    if (category.evaluations.length === 0) return;
+
+                    const sum = category.evaluations.reduce((total, evaluation) => {
+                        const score = gradeMap.get(`${student.id}_${evaluation.evaluation_id}`);
+                        return total + (Number.isFinite(score) ? score : 0);
+                    }, 0);
+                    const average = sum / category.evaluations.length;
+                    internalScore += average * (category.weight / 100);
+                });
+
+                const officialScore = internalScore * (Number.parseFloat(term.official_weight) / 100);
+                totalOfficial += officialScore;
+
+                return {
+                    id: term.id,
+                    name: term.name,
+                    official_weight: Number.parseFloat(term.official_weight),
+                    is_closed: Boolean(term.is_closed),
+                    internal_score: Number(internalScore.toFixed(2)),
+                    official_score: Number(officialScore.toFixed(2))
+                };
+            });
+
+            const passingScore = Number.parseFloat(context.passing_score);
+            return {
+                id: student.id,
+                name: student.name,
+                phone: student.phone,
+                status: student.status,
+                terms: termResults,
+                total_official: Number(totalOfficial.toFixed(2)),
+                result: totalOfficial >= passingScore ? 'Aprobado' : 'En riesgo'
+            };
+        });
+
+        res.json({
+            generated_at: new Date().toISOString(),
+            context,
+            terms,
+            rows
+        });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: error.message });
