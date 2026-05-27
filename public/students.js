@@ -63,11 +63,18 @@ document.addEventListener('DOMContentLoaded', () => {
                             <span class="student-date">${formatStudentDetail(student)}</span>
                         </div>
                     </div>
-                    <button class="btn-delete" data-id="${student.id}" title="Eliminar estudiante">Eliminar</button>
+                    <div class="item-actions">
+                        <button class="btn-edit" data-id="${student.id}" title="Editar estudiante">Editar</button>
+                        <button class="btn-delete" data-id="${student.id}" title="Eliminar estudiante">Eliminar</button>
+                    </div>
                 `;
+                li.dataset.student = JSON.stringify(student);
                 studentsList.appendChild(li);
             });
 
+            document.querySelectorAll('.btn-edit').forEach((button) => {
+                button.addEventListener('click', handleEditStudent);
+            });
             document.querySelectorAll('.btn-delete').forEach((button) => {
                 button.addEventListener('click', handleDeleteStudent);
             });
@@ -139,6 +146,31 @@ document.addEventListener('DOMContentLoaded', () => {
             alert(error.message);
         }
     });
+
+    async function handleEditStudent(e) {
+        const studentItem = e.currentTarget.closest('.student-item');
+        const student = JSON.parse(studentItem.dataset.student);
+
+        const name = prompt('Nombre del estudiante:', student.name);
+        if (name === null) return;
+        const phone = prompt('Celular:', student.phone || '');
+        if (phone === null) return;
+        const notes = prompt('Observaciones:', student.notes || '');
+        if (notes === null) return;
+        const status = prompt('Estado (activo, retirado, cambiado):', student.status || 'activo');
+        if (status === null) return;
+
+        try {
+            await requestJson(`/api/students/${student.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, phone, notes, status })
+            });
+            await loadStudents();
+        } catch (error) {
+            alert(error.message);
+        }
+    }
 
     async function handleDeleteStudent(e) {
         const studentId = e.currentTarget.getAttribute('data-id');

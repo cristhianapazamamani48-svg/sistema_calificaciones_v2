@@ -98,6 +98,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const actions = document.createElement('div');
                 actions.className = 'item-actions';
 
+                const editButton = document.createElement('button');
+                editButton.className = 'btn-edit';
+                editButton.type = 'button';
+                editButton.textContent = 'Editar';
+                editButton.addEventListener('click', () => editTerm(term));
+
                 const toggleButton = document.createElement('button');
                 toggleButton.className = term.is_closed ? 'btn-secondary' : 'btn-primary-soft';
                 toggleButton.type = 'button';
@@ -110,6 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 deleteButton.textContent = 'Eliminar';
                 deleteButton.addEventListener('click', () => deleteTerm(term.id, term.name));
 
+                actions.appendChild(editButton);
                 actions.appendChild(toggleButton);
                 actions.appendChild(deleteButton);
                 content.appendChild(title);
@@ -200,10 +207,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 button.textContent = 'Eliminar';
                 button.addEventListener('click', () => deleteCategory(category.id, category.name));
 
+                const actions = document.createElement('div');
+                actions.className = 'item-actions';
+
+                const editButton = document.createElement('button');
+                editButton.className = 'btn-edit';
+                editButton.type = 'button';
+                editButton.textContent = 'Editar';
+                editButton.addEventListener('click', () => editCategory(category));
+
                 content.appendChild(title);
                 content.appendChild(detail);
+                actions.appendChild(editButton);
+                actions.appendChild(button);
                 item.appendChild(content);
-                item.appendChild(button);
+                item.appendChild(actions);
                 categoriesList.appendChild(item);
             });
 
@@ -294,10 +312,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     button.textContent = 'Eliminar';
                     button.addEventListener('click', () => deleteEvaluation(evaluation.id, evaluation.name));
 
+                    const actions = document.createElement('div');
+                    actions.className = 'item-actions';
+
+                    const editButton = document.createElement('button');
+                    editButton.className = 'btn-edit';
+                    editButton.type = 'button';
+                    editButton.textContent = 'Editar';
+                    editButton.addEventListener('click', () => editEvaluation(evaluation));
+
                     content.appendChild(name);
                     content.appendChild(detail);
+                    actions.appendChild(editButton);
+                    actions.appendChild(button);
                     row.appendChild(content);
-                    row.appendChild(button);
+                    row.appendChild(actions);
                     group.appendChild(row);
                 });
 
@@ -377,6 +406,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    async function editTerm(term) {
+        const name = prompt('Nombre del parcial:', term.name);
+        if (name === null) return;
+        const officialWeight = prompt('Valor oficial:', term.official_weight);
+        if (officialWeight === null) return;
+
+        try {
+            await requestJson(`/api/terms/${term.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, official_weight: officialWeight })
+            });
+            await loadTerms();
+        } catch (error) {
+            alert(error.message);
+        }
+    }
+
     async function deleteTerm(id, name) {
         if (!confirm(`Eliminar el parcial "${name}"? Tambien se eliminaran sus categorias, evaluaciones y notas asociadas.`)) {
             return;
@@ -430,6 +477,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    async function editCategory(category) {
+        const name = prompt('Nombre de la categoria:', category.name);
+        if (name === null) return;
+        const weight = prompt('Porcentaje:', category.weight_percentage);
+        if (weight === null) return;
+
+        try {
+            await requestJson(`/api/categories/${category.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, weight_percentage: weight })
+            });
+            await loadCategories();
+        } catch (error) {
+            alert(error.message);
+        }
+    }
+
     evaluationForm.addEventListener('submit', async (event) => {
         event.preventDefault();
 
@@ -462,6 +527,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             await requestJson(`/api/evaluations/${id}`, { method: 'DELETE' });
+            await loadEvaluations();
+        } catch (error) {
+            alert(error.message);
+        }
+    }
+
+    async function editEvaluation(evaluation) {
+        const name = prompt('Nombre de la evaluacion:', evaluation.name);
+        if (name === null) return;
+
+        try {
+            await requestJson(`/api/evaluations/${evaluation.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name })
+            });
             await loadEvaluations();
         } catch (error) {
             alert(error.message);

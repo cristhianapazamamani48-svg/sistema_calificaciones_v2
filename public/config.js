@@ -80,6 +80,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const detail = document.createElement('span');
             detail.textContent = subject.description || 'Sin descripcion';
 
+            const actions = document.createElement('div');
+            actions.className = 'item-actions';
+
+            const editButton = document.createElement('button');
+            editButton.className = 'btn-edit';
+            editButton.type = 'button';
+            editButton.textContent = 'Editar';
+            editButton.addEventListener('click', () => editSubject(subject));
+
             const button = document.createElement('button');
             button.className = 'btn-delete';
             button.type = 'button';
@@ -88,8 +97,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             content.appendChild(title);
             content.appendChild(detail);
+            actions.appendChild(editButton);
+            actions.appendChild(button);
             item.appendChild(content);
-            item.appendChild(button);
+            item.appendChild(actions);
             subjectsList.appendChild(item);
         });
     }
@@ -123,6 +134,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 group.academic_year
             ].filter(Boolean).join(' | ');
 
+            const actions = document.createElement('div');
+            actions.className = 'item-actions';
+
+            const editButton = document.createElement('button');
+            editButton.className = 'btn-edit';
+            editButton.type = 'button';
+            editButton.textContent = 'Editar';
+            editButton.addEventListener('click', () => editGroup(group));
+
             const button = document.createElement('button');
             button.className = 'btn-delete';
             button.type = 'button';
@@ -131,8 +151,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             content.appendChild(title);
             content.appendChild(detail);
+            actions.appendChild(editButton);
+            actions.appendChild(button);
             item.appendChild(content);
-            item.appendChild(button);
+            item.appendChild(actions);
             groupsList.appendChild(item);
         });
     }
@@ -210,11 +232,75 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    async function editSubject(subject) {
+        const name = prompt('Nombre de la materia:', subject.name);
+        if (name === null) return;
+
+        const description = prompt('Descripcion u observaciones:', subject.description || '');
+        if (description === null) return;
+
+        try {
+            await requestJson(`/api/subjects/${subject.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, description })
+            });
+            await loadSubjects();
+            await loadAssignments();
+        } catch (error) {
+            alert(error.message);
+        }
+    }
+
     async function deleteGroup(id, code) {
         if (!confirm(`Eliminar el grupo "${code}"?`)) return;
 
         try {
             await requestJson(`/api/groups/${id}`, { method: 'DELETE' });
+            await loadGroups();
+            await loadAssignments();
+        } catch (error) {
+            alert(error.message);
+        }
+    }
+
+    async function editGroup(group) {
+        const uniqueCode = prompt('Codigo del grupo:', group.unique_code);
+        if (uniqueCode === null) return;
+        const name = prompt('Nombre del grupo:', group.name);
+        if (name === null) return;
+        const career = prompt('Carrera:', group.career || '');
+        if (career === null) return;
+        const levelName = prompt('Nivel o anio:', group.level_name || '');
+        if (levelName === null) return;
+        const shift = prompt('Turno:', group.shift || '');
+        if (shift === null) return;
+        const classModality = prompt('Modalidad:', group.class_modality || '');
+        if (classModality === null) return;
+        const academicType = prompt('Tipo academico:', group.academic_type || '');
+        if (academicType === null) return;
+        const academicYear = prompt('Gestion:', group.academic_year || new Date().getFullYear());
+        if (academicYear === null) return;
+        const passingScore = prompt('Nota minima:', group.passing_score || 61);
+        if (passingScore === null) return;
+
+        try {
+            await requestJson(`/api/groups/${group.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    unique_code: uniqueCode,
+                    name,
+                    campus_id: group.campus_id,
+                    career,
+                    level_name: levelName,
+                    shift,
+                    class_modality: classModality,
+                    academic_type: academicType,
+                    academic_year: academicYear,
+                    passing_score: passingScore
+                })
+            });
             await loadGroups();
             await loadAssignments();
         } catch (error) {

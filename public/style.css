@@ -574,6 +574,23 @@ input[type="number"]::-webkit-inner-spin-button {
     justify-content: center;
 }
 
+.btn-edit {
+    background: rgba(59, 130, 246, 0.14);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    color: #bfdbfe;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 0.45rem 0.65rem;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.btn-edit:hover {
+    background: rgba(59, 130, 246, 0.24);
+    transform: scale(1.05);
+}
+
 .item-actions {
     display: flex;
     flex-direction: row;

@@ -299,6 +299,37 @@ app.post('/api/students', async (req, res) => {
     }
 });
 
+app.put('/api/students/:id', async (req, res) => {
+    let connection;
+    try {
+        const id = parseId(req.params.id);
+        const { name, phone, notes, status } = req.body;
+
+        if (!id) return res.status(400).json({ error: 'ID invalido' });
+        if (!requiredText(name)) return res.status(400).json({ error: 'El nombre es obligatorio' });
+
+        const allowedStatuses = ['activo', 'retirado', 'cambiado'];
+        const studentStatus = allowedStatuses.includes(status) ? status : 'activo';
+
+        connection = await pool.getConnection();
+        const [result] = await connection.query(
+            'UPDATE students SET name = ?, phone = ?, notes = ?, status = ? WHERE id = ?',
+            [name.trim(), phone?.trim() || null, notes?.trim() || null, studentStatus, id]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Estudiante no encontrado' });
+        }
+
+        res.json({ success: true, message: 'Estudiante actualizado con exito' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
 app.delete('/api/students/:id', async (req, res) => {
     let connection;
     try {
@@ -364,6 +395,34 @@ app.post('/api/subjects', async (req, res) => {
         );
 
         res.json({ success: true, id: result.insertId, message: 'Materia creada con exito' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+app.put('/api/subjects/:id', async (req, res) => {
+    let connection;
+    try {
+        const id = parseId(req.params.id);
+        const { name, description } = req.body;
+
+        if (!id) return res.status(400).json({ error: 'ID invalido' });
+        if (!requiredText(name)) return res.status(400).json({ error: 'El nombre de la materia es obligatorio' });
+
+        connection = await pool.getConnection();
+        const [result] = await connection.query(
+            'UPDATE subjects SET name = ?, description = ? WHERE id = ?',
+            [name.trim(), description?.trim() || null, id]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Materia no encontrada' });
+        }
+
+        res.json({ success: true, message: 'Materia actualizada con exito' });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: error.message });
@@ -464,6 +523,74 @@ app.post('/api/groups', async (req, res) => {
         ]);
 
         res.json({ success: true, id: result.insertId, message: 'Grupo creado con exito' });
+    } catch (error) {
+        console.error(error);
+        if (error.code === 'ER_DUP_ENTRY') {
+            return res.status(409).json({ error: 'Ya existe un grupo con ese codigo' });
+        }
+        res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+app.put('/api/groups/:id', async (req, res) => {
+    let connection;
+    try {
+        const id = parseId(req.params.id);
+        const {
+            unique_code,
+            name,
+            campus_id,
+            career,
+            level_name,
+            shift,
+            class_modality,
+            academic_type,
+            academic_year,
+            passing_score
+        } = req.body;
+
+        const campusId = parseId(campus_id);
+        const year = Number.parseInt(academic_year, 10);
+        const passingScore = Number.parseFloat(passing_score || 61);
+
+        if (!id) return res.status(400).json({ error: 'ID invalido' });
+        if (!requiredText(unique_code) || !requiredText(name) || !campusId) {
+            return res.status(400).json({ error: 'Codigo, nombre y sede son obligatorios' });
+        }
+        if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+            return res.status(400).json({ error: 'Gestion invalida' });
+        }
+        if (Number.isNaN(passingScore) || passingScore < 0 || passingScore > 100) {
+            return res.status(400).json({ error: 'Nota minima invalida' });
+        }
+
+        connection = await pool.getConnection();
+        const [result] = await connection.query(`
+            UPDATE academic_groups
+            SET unique_code = ?, name = ?, campus_id = ?, career = ?, level_name = ?,
+                shift = ?, class_modality = ?, academic_type = ?, academic_year = ?, passing_score = ?
+            WHERE id = ?
+        `, [
+            unique_code.trim(),
+            name.trim(),
+            campusId,
+            career?.trim() || null,
+            level_name?.trim() || null,
+            shift?.trim() || null,
+            class_modality?.trim() || null,
+            academic_type?.trim() || null,
+            year,
+            passingScore,
+            id
+        ]);
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Grupo no encontrado' });
+        }
+
+        res.json({ success: true, message: 'Grupo actualizado con exito' });
     } catch (error) {
         console.error(error);
         if (error.code === 'ER_DUP_ENTRY') {
@@ -929,6 +1056,38 @@ app.post('/api/terms', async (req, res) => {
     }
 });
 
+app.put('/api/terms/:id', async (req, res) => {
+    let connection;
+    try {
+        const id = parseId(req.params.id);
+        const officialWeight = Number.parseFloat(req.body.official_weight || 25);
+        const { name } = req.body;
+
+        if (!id) return res.status(400).json({ error: 'ID invalido' });
+        if (!requiredText(name)) return res.status(400).json({ error: 'El nombre del parcial es obligatorio' });
+        if (Number.isNaN(officialWeight) || officialWeight <= 0 || officialWeight > 100) {
+            return res.status(400).json({ error: 'Valor oficial del parcial invalido' });
+        }
+
+        connection = await pool.getConnection();
+        const [termRows] = await connection.query('SELECT is_closed FROM terms WHERE id = ? LIMIT 1', [id]);
+        if (termRows.length === 0) return res.status(404).json({ error: 'Parcial no encontrado' });
+        if (termRows[0].is_closed) return res.status(400).json({ error: 'No se puede editar un parcial cerrado' });
+
+        await connection.query(
+            'UPDATE terms SET name = ?, official_weight = ? WHERE id = ?',
+            [name.trim(), officialWeight, id]
+        );
+
+        res.json({ success: true, message: 'Parcial actualizado con exito' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
 app.patch('/api/terms/:id/status', async (req, res) => {
     let connection;
     try {
@@ -937,6 +1096,36 @@ app.patch('/api/terms/:id/status', async (req, res) => {
         if (!id) return res.status(400).json({ error: 'ID invalido' });
 
         connection = await pool.getConnection();
+
+        if (isClosed) {
+            const [categorySummary] = await connection.query(`
+                SELECT COALESCE(SUM(weight_percentage), 0) as total, COUNT(*) as categories_count
+                FROM evaluation_categories
+                WHERE term_id = ?
+            `, [id]);
+            const total = Number.parseFloat(categorySummary[0].total);
+            const categoriesCount = Number.parseInt(categorySummary[0].categories_count, 10);
+
+            if (categoriesCount === 0) {
+                return res.status(400).json({ error: 'No puedes cerrar un parcial sin categorias' });
+            }
+            if (Math.abs(total - 100) > 0.0001) {
+                return res.status(400).json({ error: `No puedes cerrar el parcial: las ponderaciones suman ${total}% y deben sumar 100%` });
+            }
+
+            const [evaluationSummary] = await connection.query(`
+                SELECT COUNT(e.id) as evaluations_count
+                FROM evaluation_categories ec
+                LEFT JOIN evaluations e ON e.category_id = ec.id
+                WHERE ec.term_id = ?
+            `, [id]);
+            const evaluationsCount = Number.parseInt(evaluationSummary[0].evaluations_count, 10);
+
+            if (evaluationsCount === 0) {
+                return res.status(400).json({ error: 'No puedes cerrar un parcial sin evaluaciones' });
+            }
+        }
+
         const [result] = await connection.query(
             'UPDATE terms SET is_closed = ?, closed_at = ? WHERE id = ?',
             [isClosed, isClosed ? new Date() : null, id]
@@ -1050,6 +1239,58 @@ app.post('/api/categories', async (req, res) => {
     }
 });
 
+app.put('/api/categories/:id', async (req, res) => {
+    let connection;
+    try {
+        const id = parseId(req.params.id);
+        const weight = Number.parseFloat(req.body.weight_percentage);
+        const { name } = req.body;
+
+        if (!id) return res.status(400).json({ error: 'ID invalido' });
+        if (!requiredText(name)) return res.status(400).json({ error: 'El nombre de categoria es obligatorio' });
+        if (Number.isNaN(weight) || weight <= 0 || weight > 100) {
+            return res.status(400).json({ error: 'El porcentaje debe estar entre 0 y 100' });
+        }
+
+        connection = await pool.getConnection();
+        const [categoryRows] = await connection.query(`
+            SELECT ec.term_id, t.is_closed
+            FROM evaluation_categories ec
+            JOIN terms t ON ec.term_id = t.id
+            WHERE ec.id = ?
+            LIMIT 1
+        `, [id]);
+
+        if (categoryRows.length === 0) return res.status(404).json({ error: 'Categoria no encontrada' });
+        if (categoryRows[0].is_closed) {
+            return res.status(400).json({ error: 'No se pueden modificar ponderaciones de un parcial cerrado' });
+        }
+
+        const [sumRows] = await connection.query(
+            'SELECT COALESCE(SUM(weight_percentage), 0) as total FROM evaluation_categories WHERE term_id = ? AND id <> ?',
+            [categoryRows[0].term_id, id]
+        );
+        const totalWithoutCurrent = Number.parseFloat(sumRows[0].total);
+        if (totalWithoutCurrent + weight > 100.0001) {
+            return res.status(400).json({
+                error: `La suma de ponderaciones no puede superar 100%. Sin esta categoria tienes ${totalWithoutCurrent}%`
+            });
+        }
+
+        await connection.query(
+            'UPDATE evaluation_categories SET name = ?, weight_percentage = ? WHERE id = ?',
+            [name.trim(), weight, id]
+        );
+
+        res.json({ success: true, message: 'Categoria actualizada con exito' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
 app.delete('/api/categories/:id', async (req, res) => {
     let connection;
     try {
@@ -1155,6 +1396,41 @@ app.post('/api/evaluations', async (req, res) => {
         );
 
         res.json({ success: true, id: result.insertId, message: 'Evaluacion creada con exito' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+app.put('/api/evaluations/:id', async (req, res) => {
+    let connection;
+    try {
+        const id = parseId(req.params.id);
+        const { name } = req.body;
+
+        if (!id) return res.status(400).json({ error: 'ID invalido' });
+        if (!requiredText(name)) return res.status(400).json({ error: 'El nombre es obligatorio' });
+
+        connection = await pool.getConnection();
+
+        const [evaluationRows] = await connection.query(`
+            SELECT e.id, t.is_closed
+            FROM evaluations e
+            JOIN evaluation_categories ec ON e.category_id = ec.id
+            JOIN terms t ON ec.term_id = t.id
+            WHERE e.id = ?
+            LIMIT 1
+        `, [id]);
+
+        if (evaluationRows.length === 0) return res.status(404).json({ error: 'Evaluacion no encontrada' });
+        if (evaluationRows[0].is_closed) {
+            return res.status(400).json({ error: 'No se pueden modificar evaluaciones de un parcial cerrado' });
+        }
+
+        await connection.query('UPDATE evaluations SET name = ? WHERE id = ?', [name.trim(), id]);
+        res.json({ success: true, message: 'Evaluacion actualizada con exito' });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: error.message });
