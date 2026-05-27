@@ -19,7 +19,10 @@
                 <a href="/evaluations.html">Evaluaciones</a>
                 <a href="/config.html">Configuracion</a>
                 <a href="/reports.html" class="active">Reportes</a>
+                <a href="/users.html" class="superadmin-only">Usuarios</a>
+                <a href="#" id="logoutLink">Salir</a>
             </nav>
+            <p id="currentUser" class="user-badge"></p>
         </header>
 
         <section class="panel dashboard-controls screen-only">
@@ -47,6 +50,7 @@
             <div class="report-empty">Selecciona un grupo y materia para generar el reporte.</div>
         </section>
     </div>
+    <script src="auth.js"></script>
     <script src="reports.js"></script>
 </body>
 

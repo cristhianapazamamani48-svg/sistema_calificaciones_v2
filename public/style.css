@@ -66,6 +66,38 @@ header p {
     border-color: var(--primary);
 }
 
+.user-badge {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.superadmin-only {
+    display: none;
+}
+
+.login-shell {
+    min-height: calc(100vh - 4rem);
+    display: grid;
+    place-items: center;
+}
+
+.login-panel {
+    width: min(440px, 100%);
+    padding: 2rem;
+    text-align: center;
+}
+
+.login-panel h1 {
+    color: var(--primary);
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}
+
+.login-panel > p {
+    color: var(--text-muted);
+    margin-bottom: 1.5rem;
+}
+
 .table-wrapper,
 .panel {
     background: var(--card-bg);

@@ -45,6 +45,14 @@ async function seedDefaultUser(connection) {
             SELECT 1 FROM users WHERE email = 'docente@local.test'
         )
     `);
+
+    await connection.query(`
+        INSERT INTO users (name, email, password, role)
+        SELECT 'Super Administrador', 'admin@local.test', '1234', 'superadministrador'
+        WHERE NOT EXISTS (
+            SELECT 1 FROM users WHERE email = 'admin@local.test'
+        )
+    `);
 }
 
 async function seedDefaultAcademicPeriod(connection) {

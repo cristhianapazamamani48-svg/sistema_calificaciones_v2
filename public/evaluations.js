@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
+    requireAuth();
+
     const assignmentSelect = document.getElementById('assignmentSelect');
     const assignmentHint = document.getElementById('assignmentHint');
     const termForm = document.getElementById('termForm');
@@ -25,7 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let cachedCategories = [];
 
     async function requestJson(url, options) {
-        const response = await fetch(url, options);
+        const response = await authFetch(url, options);
         const data = await response.json();
 
         if (!response.ok) {

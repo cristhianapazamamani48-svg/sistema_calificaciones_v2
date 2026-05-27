@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
+    requireAuth();
+
     const groupSelect = document.getElementById('groupSelect');
     const groupHint = document.getElementById('groupHint');
     const studentForm = document.getElementById('studentForm');
@@ -10,7 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectedGroupId = '';
 
     async function requestJson(url, options) {
-        const response = await fetch(url, options);
+        const response = await authFetch(url, options);
         const data = await response.json();
 
         if (!response.ok) {

@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
+    requireAuth();
+
     const subjectForm = document.getElementById('subjectForm');
     const subjectName = document.getElementById('subjectName');
     const subjectDescription = document.getElementById('subjectDescription');
@@ -30,7 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
     fields.academicYear.value = new Date().getFullYear();
 
     async function requestJson(url, options) {
-        const response = await fetch(url, options);
+        const response = await authFetch(url, options);
         const data = await response.json();
 
         if (!response.ok) {

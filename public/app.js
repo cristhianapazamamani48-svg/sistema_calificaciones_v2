@@ -11,7 +11,7 @@ let selectedAssignmentId = '';
 let selectedTermId = '';
 
 async function requestJson(url, options) {
-    const response = await fetch(url, options);
+    const response = await authFetch(url, options);
     const data = await response.json();
 
     if (!response.ok) {
@@ -181,7 +181,7 @@ async function guardarYCalcular(inputElement) {
     if (score > 100) { score = 100; inputElement.value = 100; }
     if (score < 0) { score = 0; inputElement.value = 0; }
 
-    await fetch(URL_API_GRADES, {
+    await authFetch(URL_API_GRADES, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ student_id, evaluation_id, score })
@@ -238,7 +238,9 @@ termSelect.addEventListener('change', () => {
     cargarDashboard();
 });
 
-cargarAsignaciones().catch((error) => {
-    console.error('Error cargando asignaciones:', error);
-    limpiarTabla(error.message);
+requireAuth().then(() => {
+    cargarAsignaciones().catch((error) => {
+        console.error('Error cargando asignaciones:', error);
+        limpiarTabla(error.message);
+    });
 });

@@ -6,8 +6,10 @@ const reportOutput = document.getElementById('reportOutput');
 
 let selectedAssignmentId = '';
 
+requireAuth();
+
 async function requestJson(url, options) {
-    const response = await fetch(url, options);
+    const response = await authFetch(url, options);
     const data = await response.json();
 
     if (!response.ok) {

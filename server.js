@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const crypto = require('crypto');
 require('dotenv').config();
 
 const pool = require('./database');
@@ -9,6 +10,9 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
+const AUTH_SECRET = process.env.AUTH_SECRET || 'cambia-este-secreto-en-produccion';
+const TOKEN_TTL_MS = 12 * 60 * 60 * 1000;
+
 function parseId(value) {
     const id = Number.parseInt(value, 10);
     return Number.isInteger(id) && id > 0 ? id : null;
@@ -16,6 +20,81 @@ function parseId(value) {
 
 function requiredText(value) {
     return typeof value === 'string' && value.trim() !== '';
+}
+
+function hashPassword(password) {
+    return crypto.createHash('sha256').update(String(password)).digest('hex');
+}
+
+function passwordMatches(storedPassword, submittedPassword) {
+    return storedPassword === submittedPassword || storedPassword === hashPassword(submittedPassword);
+}
+
+function base64UrlEncode(value) {
+    return Buffer.from(JSON.stringify(value)).toString('base64url');
+}
+
+function base64UrlDecode(value) {
+    return JSON.parse(Buffer.from(value, 'base64url').toString('utf8'));
+}
+
+function signToken(user) {
+    const payload = {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        exp: Date.now() + TOKEN_TTL_MS
+    };
+    const encodedPayload = base64UrlEncode(payload);
+    const signature = crypto.createHmac('sha256', AUTH_SECRET).update(encodedPayload).digest('base64url');
+    return `${encodedPayload}.${signature}`;
+}
+
+function verifyToken(token) {
+    try {
+        if (!token || !token.includes('.')) return null;
+
+        const [encodedPayload, signature] = token.split('.');
+        const expectedSignature = crypto.createHmac('sha256', AUTH_SECRET).update(encodedPayload).digest('base64url');
+
+        const signatureBuffer = Buffer.from(signature);
+        const expectedSignatureBuffer = Buffer.from(expectedSignature);
+        if (signatureBuffer.length !== expectedSignatureBuffer.length) return null;
+
+        if (!crypto.timingSafeEqual(signatureBuffer, expectedSignatureBuffer)) {
+            return null;
+        }
+
+        const payload = base64UrlDecode(encodedPayload);
+        if (!payload.exp || payload.exp < Date.now()) return null;
+        return payload;
+    } catch (error) {
+        return null;
+    }
+}
+
+function requireAuth(req, res, next) {
+    const header = req.get('authorization') || '';
+    const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+    const user = verifyToken(token);
+
+    if (!user) {
+        return res.status(401).json({ error: 'Sesion no valida. Inicia sesion nuevamente.' });
+    }
+
+    req.user = user;
+    next();
+}
+
+function requireRole(roles) {
+    return (req, res, next) => {
+        if (!roles.includes(req.user.role)) {
+            return res.status(403).json({ error: 'No tienes permisos para realizar esta accion' });
+        }
+
+        next();
+    };
 }
 
 async function getDefaultTeacherId(connection) {
@@ -46,6 +125,164 @@ async function getDefaultAcademicPeriodId(connection) {
 
 app.get('/api/estado', (req, res) => {
     res.json({ mensaje: 'Sistema de Calificaciones V2 Operativo' });
+});
+
+app.post('/api/auth/login', async (req, res) => {
+    let connection;
+    try {
+        const { email, password } = req.body;
+
+        if (!requiredText(email) || !requiredText(password)) {
+            return res.status(400).json({ error: 'Correo y contrasena son obligatorios' });
+        }
+
+        connection = await pool.getConnection();
+        const [rows] = await connection.query(
+            'SELECT id, name, email, password, role FROM users WHERE email = ? LIMIT 1',
+            [email.trim()]
+        );
+
+        if (rows.length === 0 || !passwordMatches(rows[0].password, password)) {
+            return res.status(401).json({ error: 'Credenciales incorrectas' });
+        }
+
+        const user = {
+            id: rows[0].id,
+            name: rows[0].name,
+            email: rows[0].email,
+            role: rows[0].role
+        };
+
+        res.json({ token: signToken(user), user });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+app.get('/api/auth/me', requireAuth, (req, res) => {
+    res.json({ user: req.user });
+});
+
+app.use('/api', requireAuth);
+
+app.get('/api/users', requireRole(['superadministrador']), async (req, res) => {
+    let connection;
+    try {
+        connection = await pool.getConnection();
+        const [rows] = await connection.query(`
+            SELECT id, name, email, role, created_at
+            FROM users
+            ORDER BY role ASC, name ASC
+        `);
+        res.json(rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+app.post('/api/users', requireRole(['superadministrador']), async (req, res) => {
+    let connection;
+    try {
+        const { name, email, password, role } = req.body;
+        const allowedRoles = ['superadministrador', 'admin', 'docente'];
+
+        if (!requiredText(name) || !requiredText(email) || !requiredText(password)) {
+            return res.status(400).json({ error: 'Nombre, correo y contrasena son obligatorios' });
+        }
+        if (!allowedRoles.includes(role)) {
+            return res.status(400).json({ error: 'Rol invalido' });
+        }
+
+        connection = await pool.getConnection();
+        const [result] = await connection.query(
+            'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)',
+            [name.trim(), email.trim(), hashPassword(password), role]
+        );
+
+        res.status(201).json({ success: true, id: result.insertId, message: 'Usuario creado con exito' });
+    } catch (error) {
+        console.error(error);
+        if (error.code === 'ER_DUP_ENTRY') {
+            return res.status(400).json({ error: 'Ya existe un usuario con ese correo' });
+        }
+        res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+app.put('/api/users/:id', requireRole(['superadministrador']), async (req, res) => {
+    let connection;
+    try {
+        const id = parseId(req.params.id);
+        const { name, email, password, role } = req.body;
+        const allowedRoles = ['superadministrador', 'admin', 'docente'];
+
+        if (!id) return res.status(400).json({ error: 'ID invalido' });
+        if (!requiredText(name) || !requiredText(email)) {
+            return res.status(400).json({ error: 'Nombre y correo son obligatorios' });
+        }
+        if (!allowedRoles.includes(role)) {
+            return res.status(400).json({ error: 'Rol invalido' });
+        }
+
+        connection = await pool.getConnection();
+
+        if (requiredText(password)) {
+            await connection.query(
+                'UPDATE users SET name = ?, email = ?, password = ?, role = ? WHERE id = ?',
+                [name.trim(), email.trim(), hashPassword(password), role, id]
+            );
+        } else {
+            await connection.query(
+                'UPDATE users SET name = ?, email = ?, role = ? WHERE id = ?',
+                [name.trim(), email.trim(), role, id]
+            );
+        }
+
+        res.json({ success: true, message: 'Usuario actualizado con exito' });
+    } catch (error) {
+        console.error(error);
+        if (error.code === 'ER_DUP_ENTRY') {
+            return res.status(400).json({ error: 'Ya existe un usuario con ese correo' });
+        }
+        res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+app.delete('/api/users/:id', requireRole(['superadministrador']), async (req, res) => {
+    let connection;
+    try {
+        const id = parseId(req.params.id);
+        if (!id) return res.status(400).json({ error: 'ID invalido' });
+        if (id === req.user.id) {
+            return res.status(400).json({ error: 'No puedes eliminar tu propia cuenta en esta sesion' });
+        }
+
+        connection = await pool.getConnection();
+        const [result] = await connection.query('DELETE FROM users WHERE id = ?', [id]);
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+
+        res.json({ success: true, message: 'Usuario eliminado con exito' });
+    } catch (error) {
+        console.error(error);
+        if (error.code === 'ER_ROW_IS_REFERENCED_2') {
+            return res.status(400).json({ error: 'No se puede eliminar un usuario que tiene cursos o registros asociados' });
+        }
+        res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
+    }
 });
 
 app.get('/api/seed', async (req, res) => {
