@@ -109,22 +109,59 @@ app.get('/api/seed', async (req, res) => {
 app.get('/api/dashboard', async (req, res) => {
     let connection;
     try {
+        const courseAssignmentId = parseId(req.query.course_assignment_id);
+        const termId = parseId(req.query.term_id);
+
+        if (!courseAssignmentId || !termId) {
+            return res.status(400).json({ error: 'Debe seleccionar grupo, materia y parcial' });
+        }
+
         connection = await pool.getConnection();
+
+        const [termRows] = await connection.query(`
+            SELECT t.id, t.name, t.official_weight, t.is_closed,
+                   ca.id as course_assignment_id, ca.group_id, ca.subject_id,
+                   ag.unique_code, ag.name as group_name, s.name as subject_name
+            FROM terms t
+            JOIN course_assignments ca ON t.course_assignment_id = ca.id
+            JOIN academic_groups ag ON ca.group_id = ag.id
+            JOIN subjects s ON ca.subject_id = s.id
+            WHERE t.id = ? AND ca.id = ?
+            LIMIT 1
+        `, [termId, courseAssignmentId]);
+
+        if (termRows.length === 0) {
+            return res.status(404).json({ error: 'No existe el parcial seleccionado para esa materia' });
+        }
+
         const [estudiantes] = await connection.query(`
-            SELECT s.id, s.name
+            SELECT DISTINCT s.id, s.name
             FROM students s
             JOIN enrollments e ON s.id = e.student_id
-            WHERE e.course_assignment_id = 1 AND e.is_active = TRUE
-        `);
+            WHERE e.course_assignment_id = ? AND e.is_active = TRUE
+            ORDER BY s.name ASC
+        `, [courseAssignmentId]);
+
         const [evaluaciones] = await connection.query(`
             SELECT e.id as eval_id, e.name as eval_name, c.id as cat_id, c.name as category_name, c.weight_percentage
             FROM evaluations e
             JOIN evaluation_categories c ON e.category_id = c.id
-            WHERE c.term_id = 1
-        `);
-        const [notas] = await connection.query('SELECT student_id, evaluation_id, score FROM grades');
+            WHERE c.term_id = ?
+            ORDER BY c.id ASC, e.id ASC
+        `, [termId]);
 
-        res.json({ estudiantes, evaluaciones, notas });
+        const evaluationIds = evaluaciones.map((evaluation) => evaluation.eval_id);
+        let notas = [];
+        if (evaluationIds.length > 0) {
+            const placeholders = evaluationIds.map(() => '?').join(', ');
+            const [gradeRows] = await connection.query(
+                `SELECT student_id, evaluation_id, score FROM grades WHERE evaluation_id IN (${placeholders})`,
+                evaluationIds
+            );
+            notas = gradeRows;
+        }
+
+        res.json({ contexto: termRows[0], estudiantes, evaluaciones, notas });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: error.message });
@@ -145,6 +182,23 @@ app.post('/api/grades', async (req, res) => {
         }
 
         connection = await pool.getConnection();
+
+        const [evaluationRows] = await connection.query(`
+            SELECT e.id, t.is_closed
+            FROM evaluations e
+            JOIN evaluation_categories ec ON e.category_id = ec.id
+            JOIN terms t ON ec.term_id = t.id
+            WHERE e.id = ?
+            LIMIT 1
+        `, [evaluationId]);
+
+        if (evaluationRows.length === 0) {
+            return res.status(404).json({ error: 'Evaluacion no encontrada' });
+        }
+        if (evaluationRows[0].is_closed) {
+            return res.status(400).json({ error: 'No se pueden guardar notas en un parcial cerrado' });
+        }
+
         await connection.query(`
             INSERT INTO grades (student_id, evaluation_id, score)
             VALUES (?, ?, ?)
