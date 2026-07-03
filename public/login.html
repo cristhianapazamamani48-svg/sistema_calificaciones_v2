@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Acceso V2 - Infocal</title>
+    <title>Acceso V3 - Infocal</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
@@ -11,14 +11,14 @@
 <body>
     <main class="login-shell">
         <section class="panel login-panel">
-            <h1>Gestor de Calificaciones V2</h1>
+            <h1>Gestor de Calificaciones V3</h1>
             <p>Acceso docente</p>
             <form id="loginForm" class="stack-form">
-                <input type="email" id="email" value="docente@local.test" placeholder="Correo" required>
-                <input type="password" id="password" value="1234" placeholder="Contrasena" required>
+                <input type="email" id="email" placeholder="Correo" autocomplete="username" required>
+                <input type="password" id="password" placeholder="Contrasena" autocomplete="current-password" required>
                 <button type="submit">Ingresar</button>
             </form>
-            <p id="loginMessage" class="helper-text">Docente: docente@local.test / 1234 | Superadmin: admin@local.test / 1234</p>
+            <p id="loginMessage" class="helper-text">Ingresa con las credenciales asignadas por el administrador.</p>
         </section>
     </main>
     <script src="auth.js"></script>

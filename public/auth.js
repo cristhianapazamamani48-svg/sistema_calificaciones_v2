@@ -1,6 +1,23 @@
 (function () {
-    const TOKEN_KEY = 'calificaciones_v2_token';
-    const USER_KEY = 'calificaciones_v2_user';
+    const TOKEN_KEY = 'calificaciones_v3_token';
+    const USER_KEY = 'calificaciones_v3_user';
+    const OLD_TOKEN_KEY = 'calificaciones_v2_token';
+    const OLD_USER_KEY = 'calificaciones_v2_user';
+
+    function migrateSessionKeys() {
+        const oldToken = localStorage.getItem(OLD_TOKEN_KEY);
+        const oldUser = localStorage.getItem(OLD_USER_KEY);
+
+        if (!localStorage.getItem(TOKEN_KEY) && oldToken) {
+            localStorage.setItem(TOKEN_KEY, oldToken);
+        }
+        if (!localStorage.getItem(USER_KEY) && oldUser) {
+            localStorage.setItem(USER_KEY, oldUser);
+        }
+
+        localStorage.removeItem(OLD_TOKEN_KEY);
+        localStorage.removeItem(OLD_USER_KEY);
+    }
 
     function getToken() {
         return localStorage.getItem(TOKEN_KEY);
@@ -103,6 +120,8 @@
     window.saveSession = saveSession;
     window.clearSession = clearSession;
     window.getCurrentUser = getUser;
+
+    migrateSessionKeys();
 
     document.addEventListener('DOMContentLoaded', () => {
         renderUser(getUser());

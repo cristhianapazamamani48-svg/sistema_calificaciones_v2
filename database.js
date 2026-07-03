@@ -1,14 +1,17 @@
 const mysql = require('mysql2/promise');
 
-const pool = mysql.createPool({
-    host: process.env.DB_HOST || 'db',
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'calificaciones_v2_db',
+const poolConfig = process.env.MYSQL_URL || {
+    host: process.env.DB_HOST || process.env.MYSQLHOST || 'db',
+    port: Number.parseInt(process.env.DB_PORT || process.env.MYSQLPORT || '3306', 10),
+    user: process.env.DB_USER || process.env.MYSQLUSER || 'root',
+    password: process.env.DB_PASSWORD || process.env.MYSQLPASSWORD || '',
+    database: process.env.DB_NAME || process.env.MYSQLDATABASE || 'calificaciones_v3_db',
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0
-});
+};
+
+const pool = mysql.createPool(poolConfig);
 
 async function columnExists(connection, tableName, columnName) {
     const [rows] = await connection.query(`
@@ -245,7 +248,7 @@ async function initializeDatabase() {
         await seedDefaultUser(connection);
         await seedDefaultAcademicPeriod(connection);
 
-        console.log('Estructura de base de datos V2 lista.');
+        console.log('Estructura de base de datos V3 lista.');
     } catch (error) {
         console.error('Error inicializando BD:', error);
     } finally {

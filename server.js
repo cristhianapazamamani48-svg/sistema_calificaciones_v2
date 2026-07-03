@@ -10,8 +10,13 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-const AUTH_SECRET = process.env.AUTH_SECRET || 'cambia-este-secreto-en-produccion';
+const DEFAULT_AUTH_SECRET = 'cambia-este-secreto-en-produccion';
+const AUTH_SECRET = process.env.AUTH_SECRET || DEFAULT_AUTH_SECRET;
 const TOKEN_TTL_MS = 12 * 60 * 60 * 1000;
+
+if (process.env.NODE_ENV === 'production' && AUTH_SECRET === DEFAULT_AUTH_SECRET) {
+    throw new Error('AUTH_SECRET debe configurarse en produccion.');
+}
 
 function parseId(value) {
     const id = Number.parseInt(value, 10);
@@ -124,7 +129,11 @@ async function getDefaultAcademicPeriodId(connection) {
 }
 
 app.get('/api/estado', (req, res) => {
-    res.json({ mensaje: 'Sistema de Calificaciones V2 Operativo' });
+    res.json({ mensaje: 'Sistema de Calificaciones V3 Operativo' });
+});
+
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', service: 'sistema-calificaciones-v3' });
 });
 
 app.post('/api/auth/login', async (req, res) => {
@@ -285,9 +294,13 @@ app.delete('/api/users/:id', requireRole(['superadministrador']), async (req, re
     }
 });
 
-app.get('/api/seed', async (req, res) => {
+app.post('/api/dev/seed', requireRole(['superadministrador']), async (req, res) => {
     let connection;
     try {
+        if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DEMO_SEED !== 'true') {
+            return res.status(403).json({ error: 'La carga de datos demo esta deshabilitada en produccion' });
+        }
+
         connection = await pool.getConnection();
 
         const [sede] = await connection.query('INSERT INTO campuses (name) VALUES (?)', ['Sede El Alto']);
@@ -1715,7 +1728,7 @@ app.delete('/api/evaluations/:id', async (req, res) => {
     }
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
-    console.log(`Servidor de Calificaciones V2 corriendo en el puerto ${PORT}`);
+    console.log(`Servidor de Calificaciones V3 corriendo en el puerto ${PORT}`);
 });

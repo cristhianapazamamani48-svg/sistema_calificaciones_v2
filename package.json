@@ -1,11 +1,11 @@
 {
-  "name": "sistema_calificaciones_v2",
+  "name": "sistema_calificaciones_v3",
   "version": "1.0.0",
-  "description": "Sistema de calificaciones version 2",
+  "description": "Sistema de calificaciones version 3",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --check server.js && node --check database.js && node --check public/app.js && node --check public/auth.js && node --check public/config.js && node --check public/evaluations.js && node --check public/login.js && node --check public/reports.js && node --check public/students.js && node --check public/users.js"
   },
   "keywords": [],
   "author": "",
